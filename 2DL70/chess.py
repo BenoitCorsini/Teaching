@@ -4,17 +4,16 @@ import os
 import os.path as osp
 import numpy as np
 import numpy.random as npr
-sys.path.append('../../../')
 import matplotlib.patches as patches
 from matplotlib.path import Path
 from matplotlib.transforms import Affine2D
 from matplotlib.textpath import TextPath
 
-import probability
-
+sys.path.append('../')
+from bcplot import BCPlot as plot
 
 N_TILES = 8
-CMAP = probability.plot.visual.Visual.get_cmap([
+CMAP = plot.get_cmap([
     (255/255, 255/255, 255/255),
     ( 64/255, 149/255, 191/255),
     (  0/255,   0/255,   0/255),
@@ -168,7 +167,7 @@ class Knight(ChessPiece):
             (i - 1, j - 2),
         ])
 
-class Project(probability.plot.visual.Visual):
+class ChessPlot(plot):
 
     def __init__(self, steps=1, jumps=1, **kwargs):
         super().__init__(**PARAMS)
@@ -182,7 +181,6 @@ class Project(probability.plot.visual.Visual):
             return np.array([[2*i/N_TILES - 1, 2*j/N_TILES - 1]])
 
     def setup_chess(self, piece):
-        self.frame.set_visible(False)
         self.tiles = {}
         self.pieces = {}
         self.bg_pieces = {}
@@ -303,8 +301,8 @@ class Project(probability.plot.visual.Visual):
 
     def run(self, piece):
         # self.animate(piece)
-        # self.image(piece)
-        self.anonymized(piece)
+        self.image(piece)
+        # self.anonymized(piece)
         # self.moves(piece)
 
 
@@ -313,8 +311,8 @@ if __name__ == '__main__':
     parser.add_argument('--steps', type=int, default=180)
     parser.add_argument('--jumps', type=int, default=1.05)
     kwargs = vars(parser.parse_args())
-    Project(**kwargs).run(King())
-    Project(**kwargs).run(Queen())
-    Project(**kwargs).run(Rook())
-    Project(**kwargs).run(Bishop())
-    Project(**kwargs).run(Knight())
+    ChessPlot(**kwargs).run(King())
+    ChessPlot(**kwargs).run(Queen())
+    ChessPlot(**kwargs).run(Rook())
+    ChessPlot(**kwargs).run(Bishop())
+    ChessPlot(**kwargs).run(Knight())

@@ -22,9 +22,9 @@ class Figure(object):
 
     def reset(self):
         self.start_time = time()
-        self.figure()
+        self.__figure__()
 
-    def figure(self):
+    def __figure__(self):
         self.fig = figure.Figure(figsize=self.figsize, dpi=self.dpi)
         self.fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
 
@@ -32,9 +32,9 @@ class Figure(object):
         self.ax.set_xlim(self.xmin, self.xmax)
         self.ax.set_ylim(self.ymin, self.ymax)
         self.ax.set_axis_off()
-        self.copyright()
+        self.__copyright__()
 
-    def copyright(self, keys=['ratio', 'text', 'fname', 'size', 'fc', 'ec', 'lw']):
+    def __copyright__(self, keys=['ratio', 'text', 'fname', 'size', 'fc', 'ec', 'lw']):
         kwargs = {key:value for (key,value) in self.copyright.items() if key not in keys}
         prop = FontProperties(fname=osp.join(osp.dirname(osp.realpath(__file__)), self.copyright['fname']))
         path = TextPath(
