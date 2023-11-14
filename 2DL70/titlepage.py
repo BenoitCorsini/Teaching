@@ -8,6 +8,7 @@ from bcplot import BCPlot as plot
 
 
 PARAMS = {
+    'copyright' : {},
     'figsize' : (16,9),
     'dpi' : 1000,
     'xmax' : 16,
