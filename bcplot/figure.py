@@ -17,7 +17,6 @@ class Figure(object):
             setattr(self, key, value)
         for key, value in kwargs.items():
             setattr(self, key, value)
-
         self.reset()
 
     def reset(self):
@@ -27,7 +26,6 @@ class Figure(object):
     def __figure__(self):
         self.fig = figure.Figure(figsize=self.figsize, dpi=self.dpi)
         self.fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
-
         self.ax = self.fig.add_subplot()
         self.ax.set_xlim(self.xmin, self.xmax)
         self.ax.set_ylim(self.ymin, self.ymax)
@@ -107,4 +105,3 @@ class Figure(object):
 
     def time(self):
         return self.time_to_string(time() - self.start_time)
-
