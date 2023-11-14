@@ -54,7 +54,8 @@ class Image(Figure):
         return columns, rows
 
     # https://www.rapidtables.com/code/text/unicode-characters.html
-    def path_from_string(self, s, x=0, y=0, ratio=1):
+    @classmethod
+    def path_from_string(cls, s, x=0, y=0, ratio=1):
         path = TextPath((0, 0), s)
         bbox = path.get_extents()
         size = max(bbox.size)
