@@ -1,2 +1,5 @@
-# teaching
-A repository of my projects related to teaching
+# Courses
+
+## Probability and Statistics (2DL70)
+
+### Tu Eindhoven
