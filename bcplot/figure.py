@@ -42,25 +42,25 @@ class Figure(object):
 
     def __copyright__(self, keys=['ratio', 'text', 'fname', 'size', 'fc', 'ec', 'lw']):
         kwargs = {key:value for (key,value) in self.copyright.items() if key not in keys}
-        prop = FontProperties(fname=osp.join(osp.dirname(osp.realpath(__file__)), self.copyright['fname']))
+        prop = FontProperties(fname=osp.join(osp.dirname(osp.realpath(__file__)), self.copyright.get('fname', '@BC.otf')))
         path = TextPath(
             xy=(
-                self.xmin + self.copyright['ratio']*(self.xmax - self.xmin),
-                self.ymin + self.copyright['ratio']*(self.ymax - self.ymin),
+                self.xmax - self.copyright.get('ratio', 1)*(self.xmax - self.xmin),
+                self.ymax - self.copyright.get('ratio', 1)*(self.ymax - self.ymin),
             ),
-            s=self.copyright['text'],
+            s=self.copyright.get('text', ''),
             prop=prop,
-            size=self.copyright['size']
+            size=self.copyright.get('size', 0)*max(self.xmax - self.xmin, self.ymax - self.ymin),
         )
         self.ax.add_patch(patches.PathPatch(
             path=path,
-            color=self.copyright['ec'],
-            lw=self.copyright['lw'],
+            color=self.copyright.get('ec', 'black'),
+            lw=self.copyright.get('lw', 100),
             **kwargs
         ))
         self.ax.add_patch(patches.PathPatch(
             path=path,
-            color=self.copyright['fc'],
+            color=self.copyright.get('fc', 'white'),
             **kwargs
         ))
 
