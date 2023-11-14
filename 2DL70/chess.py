@@ -1,12 +1,6 @@
 import sys
-import argparse
-import os
-import os.path as osp
 import numpy as np
 import numpy.random as npr
-import matplotlib.patches as patches
-from matplotlib.transforms import Affine2D
-from matplotlib.textpath import TextPath
 
 sys.path.append('../')
 from bcplot import BCPlot as plot
@@ -280,12 +274,10 @@ class ChessPlot(plot):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--seed', type=int, default=None)
-    parser.add_argument('--steps', type=int, default=180)
-    parser.add_argument('--jumps', type=int, default=1.05)
-    parser.add_argument('--secret', type=int, default=0)
-    kwargs = vars(parser.parse_args())
     CP = ChessPlot()
+    CP.new_param('--seed', type=int, default=None)
+    CP.new_param('--steps', type=int, default=180)
+    CP.new_param('--jumps', type=int, default=1.05)
+    CP.new_param('--secret', type=int, default=0)
     for piece in [King(), Queen(), Rook(), Bishop(), Knight()]:
-        CP.run(piece, **kwargs)
+        CP.run(piece, **CP.get_kwargs())

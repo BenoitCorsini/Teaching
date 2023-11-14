@@ -1,3 +1,4 @@
+import argparse
 import os
 import os.path as osp
 import matplotlib.figure as figure
@@ -17,7 +18,14 @@ class Figure(object):
             setattr(self, key, value)
         for key, value in kwargs.items():
             setattr(self, key, value)
+        self.parser = argparse.ArgumentParser()
         self.reset()
+
+    def new_param(self, *args, **kwargs):
+        self.parser.add_argument(*args, **kwargs)
+
+    def get_kwargs(self):
+        return vars(self.parser.parse_args())
 
     def reset(self):
         self.start_time = time()
