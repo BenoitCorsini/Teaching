@@ -14,7 +14,6 @@ class Image(Figure):
         self.save(*args, **kwargs)
         print('Time to plot image: ' + self.time())
 
-
     def plot_shape(self, shape_name, **kwargs):
         patch = getattr(patches, shape_name)(**kwargs)
         self.ax.add_patch(patch)
@@ -54,7 +53,6 @@ class Image(Figure):
             rows.append(row_patch)
         return columns, rows
 
-    # For a large list of characters, see:
     # https://www.rapidtables.com/code/text/unicode-characters.html
     def path_from_string(s, x=0, y=0, ratio=1):
         path = TextPath((0, 0), s)

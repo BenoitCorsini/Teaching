@@ -17,6 +17,14 @@ class Video(Image):
         super().reset()
         self.frame_counter = 0
 
+    def save_video(self, *args, **kwargs):
+        sys.stdout.write('\033[F\033[K')
+        print(f'Time to create all frames ({self.frame_counter}): ' + self.time())
+        print('Making the video...')
+        self.frames_to_video(*args, **kwargs)
+        sys.stdout.write('\033[F\033[K')
+        print('Time to make video: ' + self.time())
+
     def new_frame(self, frames_dir=None, transparent=False):
         if frames_dir is None:
             frames_dir = self.frames_dir
@@ -39,19 +47,15 @@ class Video(Image):
         video_file = osp.join(video_dir, name + '.mp4')
         frames = [osp.join(frames_dir, file) for file in sorted(os.listdir(frames_dir))]
         h, w, _ = cv2.imread(frames[0]).shape
-
         video = cv2.VideoWriter(
             video_file,
             cv2.VideoWriter_fourcc(*'mp4v'),
             self.fps,
             (w, h)
         )
-
         for frame in frames:
             image = cv2.imread(frame)
             video.write(image)
-
         video.release()
         cv2.destroyAllWindows()
-
         return video_file

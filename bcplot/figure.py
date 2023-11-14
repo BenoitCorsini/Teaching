@@ -86,7 +86,6 @@ class Figure(object):
             colour_list = [start_with, colour]
         else:
             colour_list = [start_with, colour, end_with]
-
         return Image.get_cmap(colour_list)
 
     @staticmethod
