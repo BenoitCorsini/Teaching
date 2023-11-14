@@ -1,0 +1,23 @@
+PARAMS = {
+    'figsize' : (10, 10),
+    'dpi' : 100,
+    'extra_space' : 0,
+    'fps' : 20,
+    'image_dir' : '.',
+    'video_dir' : '.',
+    'frames_dir' : 'frames',
+    'copyright' : {
+        'ratio' : 0.98,
+        'text' : '@B.Corsini',
+        'fname' : '@BC.otf',
+        'size' : 0.1,
+        'zorder' : 1000,
+        'alpha' : 0.05,
+        'zorder' : 100,
+        'lw' : 2,
+        'ec' : 'white',
+        'fc' : 'black',
+        'joinstyle' : 'round',
+        'capstyle' : 'round',
+    },
+}
