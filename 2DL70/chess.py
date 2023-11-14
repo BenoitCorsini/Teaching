@@ -5,6 +5,7 @@ import numpy.random as npr
 sys.path.append('../')
 from bcplot import BCPlot as plot
 
+
 N_TILES = 8
 CMAP = plot.get_cmap([
     (255/255, 255/255, 255/255),
@@ -87,7 +88,6 @@ class ChessPiece(object):
             x=i + 0.5,
             y=j + 0.5,
         )
-
 
 class King(ChessPiece):
 
