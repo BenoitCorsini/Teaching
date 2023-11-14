@@ -1,1 +1,1 @@
-from .animation import Animation as BCPlot
+from .video import Video as BCPlot

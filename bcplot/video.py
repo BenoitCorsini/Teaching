@@ -7,7 +7,7 @@ from shutil import rmtree
 from .image import Image
 
 
-class Animation(Image):
+class Video(Image):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
