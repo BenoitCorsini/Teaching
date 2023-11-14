@@ -7,7 +7,7 @@ from shutil import rmtree
 from .image import Image
 
 
-class Visual(Image):
+class Animation(Image):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

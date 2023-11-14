@@ -1,7 +1,10 @@
 PARAMS = {
     'figsize' : (10, 10),
     'dpi' : 100,
-    'extra_space' : 0,
+    'xmin' : 0,
+    'xmax' : 1,
+    'ymin' : 0,
+    'ymax' : 1,
     'fps' : 20,
     'image_dir' : '.',
     'video_dir' : '.',
