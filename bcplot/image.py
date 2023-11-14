@@ -1,7 +1,5 @@
 import os
 import os.path as osp
-import itertools
-import numpy as np
 import matplotlib.figure as figure
 import matplotlib.patches as patches
 from matplotlib.colors import LinearSegmentedColormap
