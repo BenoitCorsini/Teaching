@@ -13,6 +13,10 @@ class Animation(Image):
         super().__init__(*args, **kwargs)
         self.frame_counter = 0
 
+    def reset(self):
+        super().reset()
+        self.frame_counter = 0
+
     def new_frame(self, frames_dir=None, transparent=False):
         if frames_dir is None:
             frames_dir = self.frames_dir
