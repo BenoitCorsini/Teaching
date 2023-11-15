@@ -59,15 +59,12 @@ class DiscreteDistribution(Distribution):
         LB = self.minimum
         UB = self.maximum
         if bound is not None:
-            if isinstance(bound, int):
-                LB = self.minimum
-                if self.maximum is None:
-                    UB = bound
-            else:
-                if self.minimum is None:
-                    LB = int(bound[0])
-                if self.maximum is None:
-                    UB = int(bound[1])
+            bound = int(bound)
+            assert bound >= 0
+            if LB is None:
+                LB = - bound
+            if UB is None:
+                UB = bound
         assert LB is not None and UB is not None
         assert isinstance(LB, int) and isinstance(UB, int)
         assert LB <= UB
@@ -126,7 +123,7 @@ class DistributionPlot(plot):
     def file_name(self):
         return 'discrete'
 
-    def image(self):
+    def image(self, distribution):
         self.reset()
         self.save_image(name=self.file_name())
 
@@ -134,14 +131,14 @@ class DistributionPlot(plot):
         self.reset()
         self.save_video(name=self.file_name())
 
-    def run(self, seed=None):
+    def run(self, distribution, seed=None):
         npr.seed(seed)
-        self.image()
+        self.image(distribution)
         # self.video()
 
 
 if __name__ == '__main__':
-    # DP = DistributionPlot()
-    # DP.new_param('--seed', type=int, default=None)
-    # DP.run()
+    DP = DistributionPlot()
+    DP.new_param('--bound', type=int, default=None)
     B = Binomial(10)
+    DP.run(B)
