@@ -16,7 +16,6 @@ PARAMS = {
         'size' : 0.1,
         'zorder' : 1000,
         'alpha' : 0.05,
-        'zorder' : 100,
         'lw' : 2,
         'ec' : 'white',
         'fc' : 'black',
