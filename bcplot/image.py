@@ -34,16 +34,16 @@ class Image(Figure):
         rows = []
         kwargs['capstyle'] = 'butt'
         delta_x = (xmax - xmin)/x_blocks
-        for x in range(0, x_blocks+1):
+        for x in range(0, x_blocks + 1):
             pos = xmin + x*delta_x
             column_patch = self.plot_shape(
                 shape_name='Polygon',
-                xy=[[pos, xmin], [pos, xmax]],
+                xy=[[pos, ymin], [pos, ymax]],
                 **kwargs
             )
             columns.append(column_patch)
         delta_y = (ymax - ymin)/y_blocks
-        for y in range(0, y_blocks+1):
+        for y in range(0, y_blocks + 1):
             pos = ymin + y*delta_y
             row_patch = self.plot_shape(
                 shape_name='Polygon',
