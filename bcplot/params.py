@@ -12,7 +12,7 @@ PARAMS = {
     'copyright' : {
         'text' : '@B.Corsini',
         'fname' : '@BC.otf',
-        'ratio' : 0.1,
+        'ratio' : 0.05,
         'margin' : 0.02,
         'lw' : 2,
         'ec' : 'white',

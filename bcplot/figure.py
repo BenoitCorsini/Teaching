@@ -44,7 +44,6 @@ class Figure(object):
 
     @staticmethod
     def shift_from_anchor(bbox, anchor=None):
-        anchor = anchor.strip()
         if anchor is None:
             return np.array([0, 0])
         elif anchor == 'north':
@@ -56,6 +55,7 @@ class Figure(object):
         elif anchor == 'west':
             return np.array([bbox.size[0]/2, 0])
         elif ' ' in anchor:
+            anchor = anchor.strip()
             return np.sum([Figure.shift_from_anchor(bbox, anc) for anc in anchor.split(' ')], axis=0)
         else:
             return np.array([0, 0])
