@@ -52,16 +52,3 @@ class Image(Figure):
             )
             rows.append(row_patch)
         return columns, rows
-
-    # https://www.rapidtables.com/code/text/unicode-characters.html
-    @classmethod
-    def path_from_string(cls, s, x=0, y=0, ratio=1):
-        path = TextPath((0, 0), s)
-        bbox = path.get_extents()
-        size = max(bbox.size)
-        transform = Affine2D()
-        tx, ty = (size - bbox.size)/2 - bbox.p0
-        transform.translate(tx - size/2, ty - size/2)
-        transform.scale(ratio/size)
-        transform.translate(x, y)
-        return path.transformed(transform)
