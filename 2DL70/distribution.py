@@ -11,6 +11,9 @@ CMAP = plot.get_cmap([
     ( 64/255, 149/255, 191/255),
     (  0/255,   0/255,   0/255),
 ])
+PMF_COLOUR = CMAP(0.7)
+CDF_COLOUR = CMAP(0.3)
+FLU_COLOUR = CMAP(0.5)
 PARAMS = {
     'extra_left' : 0.1,
     'extra_right' : 0.1,
@@ -21,47 +24,69 @@ PARAMS = {
     'label_xshift' : 0.1,
     'label_yshift' : 0.01,
     'label_height' : 0.02,
+    'mean_shift' : - 0.06,
+    'mean_height' : 0.02,
+    'std_mult' : 1.96,
     'grid_params' : {
         'lw' : 1,
         'color' : CMAP(0.75),
-        'zorder' : 1,
+        'zorder' : 2,
         'alpha' : 0.1,
     },
     'axis_params' : {
         'lw' : 2,
         'color' : CMAP(0.75),
-        'zorder' : 2,
+        'zorder' : 3,
         'capstyle' : 'round',
     },
     'label_params' : {
         'lw' : 1,
-        'color' : CMAP(0.75),
-        'zorder' : 2,
+        'color' : CMAP(0.9),
+        'zorder' : 3,
         'capstyle' : 'round',
         'joinstyle' : 'round',
     },
     'pmf_bar_params' : {
         'lw' : 10,
-        'color' : CMAP(0.6),
-        'zorder' : 0,
+        'color' : PMF_COLOUR,
+        'zorder' : 1,
     },
     'pmf_marker_params' : {
         'lw' : 0,
-        'color' : CMAP(0.6),
+        'color' : PMF_COLOUR,
         'marker' : 'o',
         'ms' : 18,
-        'zorder' : 0,
+        'zorder' : 1,
     },
     'cdf_bar_params' : {
-        'lw' : 10,
-        'color' : CMAP(0.4),
+        'lw' : 8,
+        'color' : CDF_COLOUR,
+        'zorder' : 0,
+    },
+    'cdf_empty_marker_params' : {
+        'lw' : 0,
+        'color' : CMAP(0.),
+        'marker' : 'o',
+        'ms' : 5,
         'zorder' : 0,
     },
     'cdf_marker_params' : {
         'lw' : 0,
-        'color' : CMAP(0.4),
+        'color' : CDF_COLOUR,
         'marker' : 'o',
-        'ms' : 18,
+        'ms' : 16,
+        'zorder' : 0,
+    },
+    'fluctuation_params' : {
+        'color' : FLU_COLOUR,
+        'lw' : 5,
+        'zorder' : 0,
+        'capstyle' : 'round',
+    },
+    'fluctuation_ends_params' : {
+        'lw' : 0,
+        'color' : FLU_COLOUR,
+        'ms' : 16,
         'zorder' : 0,
     },
 }
@@ -77,20 +102,6 @@ class Distribution(object):
 
     def sigma(self):
         return np.sqrt(self.variance)
-
-    def PMF(self, x):
-        if isinstance(x, list):
-            x = np.array(x)
-        if isinstance(x, np.ndarray):
-            y = np.zeros_like(x, dtype=float)
-            in_range = self.in_range(x)
-            y[in_range] = self.pmf(x[in_range])
-            return y
-        else:
-            if self.in_range(x):
-                return self.pmf(x)
-            else:
-                return 0.
 
 class DiscreteDistribution(Distribution):
 
@@ -137,6 +148,30 @@ class DiscreteDistribution(Distribution):
         else:
             return x == int(x) and LB and UB
 
+    def pmf(self, x):
+        if isinstance(x, list):
+            x = np.array(x)
+        if isinstance(x, np.ndarray):
+            y = np.zeros_like(x, dtype=float)
+            in_range = self.in_range(x)
+            y[in_range] = self.function(x[in_range])
+            return y
+        else:
+            if self.in_range(x):
+                return self.function(x)
+            else:
+                return 0.
+
+    def cdf(self, x):
+        if isinstance(x, list):
+            x = np.array(x)
+        if isinstance(x, np.ndarray):
+            y = self.cumulative_function(x[0]) + self.pmf(x)
+            y = np.cumsum(y)
+        else:
+            y = self.cumulative_function(x)
+        return y
+
 class Binomial(DiscreteDistribution):
 
     def __init__(self, n=1, p=0.5):
@@ -149,8 +184,11 @@ class Binomial(DiscreteDistribution):
         self.mean = self.n*self.p
         self.variance = self.n*self.p*(1 - self.p)
 
-    def pmf(self, x):
+    def function(self, x):
         return self.p**x*(1 - self.p)**(self.n - x)*factorial(self.n)/factorial(x)/factorial(self.n - x)
+
+    def cumulative_function(self, x):
+        return 0
 
 class Geometric(DiscreteDistribution):
 
@@ -162,8 +200,11 @@ class Geometric(DiscreteDistribution):
         self.mean = 1/self.p
         self.variance = (1 - self.p)/self.p**2
 
-    def pmf(self, x):
+    def function(self, x):
         return self.p*(1 - self.p)**(x - 1)
+
+    def cumulative_function(self, x):
+        return 0
 
 
 class DistributionPlot(plot):
@@ -272,19 +313,67 @@ class DistributionPlot(plot):
         )
         self.plot_ticks(xticks, yticks)
 
-    def plot_pmf(self, distribution):
+    def plot_discrete(self, distribution):
         x = distribution.range(max(self.xmax, - self.xmin))
-        y = distribution.PMF(x)
-        self.ax.plot(x, y, **self.pmf_marker_params)
-        points = list(zip(x, y))
-        for x, y in points:
+        pmf = distribution.pmf(x)
+        self.ax.plot(x, pmf, **self.pmf_marker_params)
+        for k, y in zip(x, pmf):
             self.plot_shape(
                 shape_name='Rectangle',
-                xy=(x, 0),
+                xy=(k, 0),
                 width=0,
                 height=y,
                 **self.pmf_bar_params
             )
+        x = np.concatenate([[self.xmin - 1], x, [self.xmax + 1]])
+        cdf = distribution.cdf(x)
+        for k1, k2, y in zip(x[:-1], x[1:], cdf):
+            self.plot_shape(
+                shape_name='Rectangle',
+                xy=(k1, y),
+                width=k2 - k1,
+                height=0,
+                **self.cdf_bar_params
+            )
+        for k, y1, y2 in zip(x[1:], cdf[:-1], cdf[1:]):
+            self.plot_shape(
+                shape_name='Rectangle',
+                xy=(k, y1),
+                width=0,
+                height=y2 - y1,
+                **self.cdf_bar_params
+            )
+        self.ax.plot(x[1:], cdf[:-1], **self.cdf_marker_params)
+        self.ax.plot(x[1:], cdf[:-1], **self.cdf_empty_marker_params)
+        self.ax.plot(x, cdf, **self.cdf_marker_params)
+
+    def plot_fluctuations(self, distribution):
+        self.plot_shape(
+            shape_name='Rectangle',
+            xy=(distribution.E(), self.mean_shift - self.mean_height/2),
+            width=0,
+            height=self.mean_height,
+            **self.fluctuation_params
+        )
+        self.plot_shape(
+            shape_name='Rectangle',
+            xy=(distribution.E() - self.std_mult*distribution.sigma(), self.mean_shift),
+            width=2*self.std_mult*distribution.sigma(),
+            height=0,
+            **self.fluctuation_params
+        )
+        self.ax.plot(
+            distribution.E() - self.std_mult*distribution.sigma(),
+            self.mean_shift,
+            marker='<',
+            **self.fluctuation_ends_params
+        )
+        self.ax.plot(
+            distribution.E() + self.std_mult*distribution.sigma(),
+            self.mean_shift,
+            marker='>',
+            **self.fluctuation_ends_params
+        )
 
     def plot(self, distribution, bound):
         bounds = distribution.range(bound)
@@ -301,21 +390,30 @@ class DistributionPlot(plot):
             step=0.25,
         )
         self.x_over_y = (self.xmax - self.xmin)/(self.ymax - self.ymin)*self.figsize[1]/self.figsize[0]
-        self.reset()
+        self.__figure__()
         self.plot_axis(xticks, yticks)
-        self.plot_pmf(distribution)
+        self.plot_discrete(distribution)
+        self.plot_fluctuations(distribution)
 
     def image(self, distribution, bound):
         self.plot(distribution, bound)
         self.save_image(name=self.file_name())
 
-    def video(self):
-        self.reset()
+    def video(self, distribution, bound):
+        for p in np.arange(0 , 1, step=0.01):
+            distribution.update(p=p)
+            self.plot(distribution, bound)
+            self.new_frame()
+        for p in np.arange(0 , 1, step=0.01):
+            distribution.update(p=1 - p)
+            self.plot(distribution, bound)
+            self.new_frame()
         self.save_video(name=self.file_name())
 
     def run(self, distribution, bound=None):
         self.image(distribution, bound)
-        # self.video()
+        self.reset()
+        self.video(distribution, bound)
 
 
 if __name__ == '__main__':
