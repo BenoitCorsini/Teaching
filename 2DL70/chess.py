@@ -81,14 +81,6 @@ class ChessPiece(object):
         for _ in range(jumps):
             self.step()
 
-    def get_path(self, inner_ratio=1, i=0, j=0):
-        return plot.path_from_string(
-            self.char,
-            ratio=inner_ratio,
-            x=i + 0.5,
-            y=j + 0.5,
-        )
-
 class King(ChessPiece):
 
     def __init__(self, char='\u265A'):
@@ -185,7 +177,12 @@ class ChessPlot(plot):
                     width=1,
                     **self.tile_params
                 )
-                path = piece.get_path(i=i, j=j, inner_ratio=self.inner_ratio)
+                path = self.path_from_string(
+                    s=piece.char,
+                    x=i + 0.5,
+                    y=j + 0.5,
+                    height=self.inner_ratio
+                )
                 self.pieces[i, j] = self.plot_shape(
                     shape_name='PathPatch',
                     path=path,
