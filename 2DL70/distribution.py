@@ -18,14 +18,14 @@ PARAMS = {
     'extra_left' : 0.1,
     'extra_right' : 0.1,
     'extra_bottom' : 0.1,
-    'extra_top' : 0.1,
+    'extra_top' : 0.15,
     'max_ticks' : 15,
     'tick_height' : 0.01,
     'label_xshift' : 0.1,
     'label_yshift' : 0.01,
     'label_height' : 0.02,
-    'mean_shift' : - 0.06,
-    'mean_height' : 0.02,
+    'mean_shift' : - 0.05,
+    'mean_height' : 0.015,
     'std_mult' : 1.96,
     'grid_params' : {
         'lw' : 1,
@@ -47,7 +47,7 @@ PARAMS = {
         'joinstyle' : 'round',
     },
     'pmf_bar_params' : {
-        'lw' : 10,
+        'lw' : 5,
         'color' : PMF_COLOUR,
         'zorder' : 1,
     },
@@ -55,11 +55,11 @@ PARAMS = {
         'lw' : 0,
         'color' : PMF_COLOUR,
         'marker' : 'o',
-        'ms' : 18,
+        'ms' : 10,
         'zorder' : 1,
     },
     'cdf_bar_params' : {
-        'lw' : 8,
+        'lw' : 4,
         'color' : CDF_COLOUR,
         'zorder' : 0,
     },
@@ -67,27 +67,40 @@ PARAMS = {
         'lw' : 0,
         'color' : CMAP(0.),
         'marker' : 'o',
-        'ms' : 5,
+        'ms' : 3,
         'zorder' : 0,
     },
     'cdf_marker_params' : {
         'lw' : 0,
         'color' : CDF_COLOUR,
         'marker' : 'o',
-        'ms' : 16,
+        'ms' : 8,
         'zorder' : 0,
     },
     'fluctuation_params' : {
         'color' : FLU_COLOUR,
-        'lw' : 5,
+        'lw' : 3,
         'zorder' : 0,
         'capstyle' : 'round',
     },
     'fluctuation_ends_params' : {
         'lw' : 0,
         'color' : FLU_COLOUR,
-        'ms' : 16,
+        'ms' : 10,
         'zorder' : 0,
+    },
+    'text_params' : {
+        'x' : 0 + 0.2,
+        'y' : 1 + 0.01,
+        'anchor' : 'south west',
+        'height' : 0.05,
+    },
+    'name_params' : {
+        'lw' : 1,
+        'color' : PMF_COLOUR,
+        'zorder' : 3,
+        'joinstyle' : 'round',
+        'capstyle' : 'round',
     },
 }
 
@@ -102,6 +115,16 @@ class Distribution(object):
 
     def sigma(self):
         return np.sqrt(self.variance)
+
+    def name(self, digits=4):
+        name = r'$\mathrm{' + self.__class__.__name__ + '}('
+        for key in self.params:
+            value = getattr(self, key)
+            if isinstance(value, float):
+                value = int(value*10**digits)/10**digits
+            name += f'{key}={value},'
+        name = name[:-1] + ')$'
+        return name
 
 class DiscreteDistribution(Distribution):
 
@@ -189,6 +212,12 @@ class Binomial(DiscreteDistribution):
 
     def cumulative_function(self, x):
         return 0
+
+class Bernoulli(Binomial):
+
+    def __init__(self, p=0.5):
+        super().__init__(minimum=0, maximum=1, n=1, p=p)
+        self.params = ['p']
 
 class Geometric(DiscreteDistribution):
 
@@ -375,6 +404,13 @@ class DistributionPlot(plot):
             **self.fluctuation_ends_params
         )
 
+    def plot_name(self, distribution):
+        self.plot_shape(
+            shape_name='PathPatch',
+            path=self.path_from_string(s=distribution.name(), **self.text_params),
+            **self.name_params
+        )
+
     def plot(self, distribution, bound):
         bounds = distribution.range(bound)
         bounds = np.min(bounds), np.max(bounds)
@@ -394,18 +430,15 @@ class DistributionPlot(plot):
         self.plot_axis(xticks, yticks)
         self.plot_discrete(distribution)
         self.plot_fluctuations(distribution)
+        self.plot_name(distribution)
 
     def image(self, distribution, bound):
         self.plot(distribution, bound)
         self.save_image(name=self.file_name())
 
     def video(self, distribution, bound):
-        for p in np.arange(0 , 1, step=0.01):
-            distribution.update(p=p)
-            self.plot(distribution, bound)
-            self.new_frame()
-        for p in np.arange(0 , 1, step=0.01):
-            distribution.update(p=1 - p)
+        for n, p in enumerate(np.arange(0 , 1, step=0.05)):
+            distribution.update(n=n+1, p=p)
             self.plot(distribution, bound)
             self.new_frame()
         self.save_video(name=self.file_name())
@@ -413,7 +446,7 @@ class DistributionPlot(plot):
     def run(self, distribution, bound=None):
         self.image(distribution, bound)
         self.reset()
-        self.video(distribution, bound)
+        # self.video(distribution, bound)
 
 
 if __name__ == '__main__':
