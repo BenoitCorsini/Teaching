@@ -15,8 +15,9 @@ PMF_COLOUR = CMAP(0.7)
 CDF_COLOUR = CMAP(0.3)
 FLU_COLOUR = CMAP(0.5)
 PARAMS = {
-    'extra_left' : 0.1,
-    'extra_right' : 0.1,
+    # 'dpi' : 10,
+    'extra_left' : 0.2,
+    'extra_right' : 0.2,
     'extra_bottom' : 0.1,
     'extra_top' : 0.15,
     'max_ticks' : 15,
@@ -102,6 +103,10 @@ PARAMS = {
         'joinstyle' : 'round',
         'capstyle' : 'round',
     },
+    'times' : {
+        'initial' : 1,
+        'final' : 1,
+    },
 }
 
 
@@ -116,10 +121,12 @@ class Distribution(object):
     def sigma(self):
         return np.sqrt(self.variance)
 
-    def name(self, digits=4):
+    def name(self, digits=2):
         name = r'$\mathrm{' + self.__class__.__name__ + '}('
         for key in self.params:
             value = getattr(self, key)
+            if hasattr(self, 'params_name'):
+                key = self.params_name.get(key, key)
             if isinstance(value, float):
                 value = int(value*10**digits)/10**digits
             name += f'{key}={value},'
@@ -148,7 +155,7 @@ class DiscreteDistribution(Distribution):
             assert bound >= 0
             if LB is None:
                 LB = - bound
-            if UB is None:
+            else:
                 UB = bound
         assert LB is not None and UB is not None
         assert isinstance(LB, int) and isinstance(UB, int)
@@ -195,6 +202,34 @@ class DiscreteDistribution(Distribution):
             y = self.cumulative_function(x)
         return y
 
+class DiscreteUniform(DiscreteDistribution):
+
+    def __init__(self, a=0, b=1):
+        super().__init__(minimum=a, maximum=b)
+        assert isinstance(a, int)
+        assert isinstance(b, int)
+        assert a <= b
+        self.a = a
+        self.b = b
+        self.params = ['a', 'b']
+        self.mean = (self.a + self.b)/2
+        self.variance = ((self.b - self.a + 1)**2 - 1)/12
+
+    def function(self, x):
+        return 1/(self.b - self.a + 1)
+
+    def cumulative_function(self, x):
+        return 0
+
+    @staticmethod
+    def params_list(n_steps=160, max_bound=10, move_power=1):
+        B = max_bound*(1 - np.cos(2*np.pi*np.arange(n_steps + 1)/n_steps))/2
+        A = (1 + max_bound)*((1 - np.cos(2*np.pi*np.arange(n_steps + 1)/n_steps))/2)**move_power
+        A = A*(A < max_bound) + max_bound*(A >= max_bound)
+        B += A
+        B = B*(B < max_bound) + max_bound*(B >= max_bound)
+        return [{'a' : int(a), 'b' : int(b)} for (a, b) in zip(A, B)]
+
 class Binomial(DiscreteDistribution):
 
     def __init__(self, n=1, p=0.5):
@@ -213,11 +248,21 @@ class Binomial(DiscreteDistribution):
     def cumulative_function(self, x):
         return 0
 
+    @staticmethod
+    def params_list(n_steps=160):
+        ps = (1 - np.cos(2*np.pi*np.arange(n_steps + 1)/n_steps))/2
+        return [{'p' : p} for p in ps]
+
 class Bernoulli(Binomial):
 
     def __init__(self, p=0.5):
-        super().__init__(minimum=0, maximum=1, n=1, p=p)
+        super().__init__(n=1, p=p)
         self.params = ['p']
+
+    @staticmethod
+    def params_list(n_steps=160):
+        ps = (1 - np.cos(2*np.pi*np.arange(n_steps + 1)/n_steps))/2
+        return [{'p' : p} for p in ps]
 
 class Geometric(DiscreteDistribution):
 
@@ -235,14 +280,42 @@ class Geometric(DiscreteDistribution):
     def cumulative_function(self, x):
         return 0
 
+    @staticmethod
+    def params_list(n_steps=160, min_p=0.01):
+        ps = (1 - np.cos(2*np.pi*np.arange(n_steps + 1)/n_steps))/2
+        ps = (1 - ps) + ps*min_p
+        return [{'p' : p} for p in ps]
+
+class Poisson(DiscreteDistribution):
+
+    def __init__(self, l=1):
+        super().__init__(minimum=0)
+        assert l >= 0
+        self.l = l
+        self.params = ['l']
+        self.params_name = {'l' : r'\lambda'}
+        self.mean = self.l
+        self.variance = self.l
+
+    def function(self, x):
+        return self.l**x*np.exp(-self.l)/factorial(x)
+
+    def cumulative_function(self, x):
+        return 0
+
+    @staticmethod
+    def params_list(n_steps=160, max_l=16):
+        ls = (1 - np.cos(2*np.pi*np.arange(n_steps + 1)/n_steps))/2
+        return [{'l' : l} for l in ls]
+
 
 class DistributionPlot(plot):
 
     def __init__(self):
         super().__init__(**PARAMS)
 
-    def file_name(self):
-        return 'distribution'
+    def file_name(self, distribution):
+        return distribution.__class__.__name__
 
     def get_ticks(self, bounds, extras, axis, step=1):
         if extras is None:
@@ -344,6 +417,7 @@ class DistributionPlot(plot):
 
     def plot_discrete(self, distribution):
         x = distribution.range(max(self.xmax, - self.xmin))
+        x = x[distribution.in_range(x)]
         pmf = distribution.pmf(x)
         self.ax.plot(x, pmf, **self.pmf_marker_params)
         for k, y in zip(x, pmf):
@@ -434,23 +508,34 @@ class DistributionPlot(plot):
 
     def image(self, distribution, bound):
         self.plot(distribution, bound)
-        self.save_image(name=self.file_name())
+        self.save_image(name=self.file_name(distribution))
 
     def video(self, distribution, bound):
-        for n, p in enumerate(np.arange(0 , 1, step=0.05)):
-            distribution.update(n=n+1, p=p)
+        params_list = distribution.params_list()
+        distribution.update(**params_list[0])
+        self.plot(distribution, bound)
+        for _ in range(int(self.fps*self.times['initial'])):
+            self.new_frame()
+        for params in params_list:
+            distribution.update(**params)
             self.plot(distribution, bound)
             self.new_frame()
-        self.save_video(name=self.file_name())
+        for _ in range(int(self.fps*self.times['final'])):
+            self.new_frame()
+        self.save_video(name=self.file_name(distribution))
 
     def run(self, distribution, bound=None):
         self.image(distribution, bound)
         self.reset()
-        # self.video(distribution, bound)
+        self.video(distribution, bound)
 
 
 if __name__ == '__main__':
     DP = DistributionPlot()
     DP.new_param('--bound', type=int, default=None)
-    B = Binomial(10)
-    DP.run(B)
+    X = DiscreteUniform(b=0)
+    # X = Binomial(n=10)
+    # X = Bernoulli()
+    # X = Geometric()
+    # X = Poisson(16)
+    DP.run(X, **DP.get_kwargs())
