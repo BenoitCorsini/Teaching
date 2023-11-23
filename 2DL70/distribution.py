@@ -222,13 +222,18 @@ class DiscreteUniform(DiscreteDistribution):
         return 0
 
     @staticmethod
-    def params_list(n_steps=160, max_bound=10, move_power=1):
-        B = max_bound*(1 - np.cos(2*np.pi*np.arange(n_steps + 1)/n_steps))/2
-        A = (1 + max_bound)*((1 - np.cos(2*np.pi*np.arange(n_steps + 1)/n_steps))/2)**move_power
-        A = A*(A < max_bound) + max_bound*(A >= max_bound)
-        B += A
-        B = B*(B < max_bound) + max_bound*(B >= max_bound)
-        return [{'a' : int(a), 'b' : int(b)} for (a, b) in zip(A, B)]
+    def params_list(n_steps=5, max_bound=10, size_return=2):
+        ps = [(0, 0)]*int(n_steps/2)
+        for i in range(max_bound):
+            ps += [(0, i + 1)]*n_steps
+        for i in range(max_bound):
+            ps += [(i + 1, max_bound)]*n_steps
+        for i in range(size_return):
+            ps += [(max_bound - i - 1, max_bound)]*n_steps
+        for i in range(max_bound - 1):
+            ps += [(max(0, max_bound - size_return - i - 1), max_bound - i - 1)]*n_steps
+        ps += [(0, 0)]*(n_steps - int(n_steps/2))
+        return [{'a' : int(a), 'b' : int(b)} for (a, b) in ps]
 
 class Binomial(DiscreteDistribution):
 
@@ -534,8 +539,8 @@ if __name__ == '__main__':
     DP = DistributionPlot()
     DP.new_param('--bound', type=int, default=None)
     X = DiscreteUniform(b=0)
-    # X = Binomial(n=10)
-    # X = Bernoulli()
-    # X = Geometric()
-    # X = Poisson(16)
+    X = Binomial(n=10)
+    X = Bernoulli()
+    X = Geometric()
+    X = Poisson(16)
     DP.run(X, **DP.get_kwargs())
