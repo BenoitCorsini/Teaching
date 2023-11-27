@@ -25,6 +25,11 @@ PARAMS = {
     'label_xshift' : 0.1,
     'label_yshift' : 0.01,
     'label_height' : 0.02,
+    'pmf_bar' : 0.15,
+    'pmf_dot' : 0.3,
+    'cdf_bar' : 0.1,
+    'cdf_dot' : 0.2,
+    'cdf_inn' : 0.08,
     'mean_shift' : - 0.05,
     'mean_height' : 0.015,
     'std_mult' : 1.96,
@@ -47,35 +52,14 @@ PARAMS = {
         'capstyle' : 'round',
         'joinstyle' : 'round',
     },
-    'pmf_bar_params' : {
-        'lw' : 5,
+    'pmf_params' : {
+        'lw' : 0,
         'color' : PMF_COLOUR,
         'zorder' : 1,
     },
-    'pmf_marker_params' : {
-        'lw' : 0,
-        'color' : PMF_COLOUR,
-        'marker' : 'o',
-        'ms' : 10,
-        'zorder' : 1,
-    },
-    'cdf_bar_params' : {
-        'lw' : 4,
-        'color' : CDF_COLOUR,
-        'zorder' : 0,
-    },
-    'cdf_empty_marker_params' : {
-        'lw' : 0,
-        'color' : CMAP(0.),
-        'marker' : 'o',
-        'ms' : 3,
-        'zorder' : 0,
-    },
-    'cdf_marker_params' : {
+    'cdf_params' : {
         'lw' : 0,
         'color' : CDF_COLOUR,
-        'marker' : 'o',
-        'ms' : 8,
         'zorder' : 0,
     },
     'fluctuation_params' : {
@@ -312,7 +296,7 @@ class Poisson(DiscreteDistribution):
     @staticmethod
     def params_list(n_steps=160, max_l=16):
         ls = (1 - np.cos(2*np.pi*np.arange(n_steps + 1)/n_steps))/2
-        return [{'l' : l} for l in ls]
+        return [{'l' : max_l*l} for l in ls]
 
 
 class DistributionPlot(plot):
@@ -425,85 +409,102 @@ class DistributionPlot(plot):
         self.plot_pmf(distribution, **pmf_params)
         self.plot_cdf(distribution, **cdf_params)
 
-    def plot_pmf(self, distribution, **kwargs):
-        for key, value in self.pmf_bar_params.items():
+    def plot_pmf(self, distribution, extra_key='', **kwargs):
+        for k, infos in self.pmf.items():
+            infos['bar'].set_visible(False)
+            infos['dot'].set_visible(False)
+        for key, value in self.pmf_params.items():
             kwargs[key] = kwargs.get(key, value)
+            kwargs['visible'] = True
         x = distribution.range(max(self.xmax, - self.xmin))
         x = x[distribution.in_range(x)]
         pmf = distribution.pmf(x)
-        self.ax.plot(x, pmf, **self.pmf_marker_params)
         for k, y in zip(x, pmf):
-            self.plot_shape(
-                shape_name='Rectangle',
-                xy=(k, 0),
-                width=0,
-                height=y,
-                **kwargs
-            )
+            key = f'{extra_key}{k}'
+            if key not in self.pmf:
+                self.pmf[key] = {
+                    'bar' : self.plot_shape(
+                        shape_name='Rectangle',
+                        xy=(k - self.pmf_bar/2, 0),
+                        width=self.pmf_bar,
+                        height=0,
+                    ),
+                    'dot' : self.plot_shape(
+                        shape_name='Ellipse',
+                        xy=(0, 0),
+                        width=self.pmf_dot,
+                        height=self.pmf_dot/self.x_over_y,
+                    ),
+                }
+            self.pmf[key]['bar'].set_height(y)
+            self.pmf[key]['bar'].set(**kwargs)
+            self.pmf[key]['dot'].set_center((k, y))
+            self.pmf[key]['dot'].set(**kwargs)
 
-    def plot_cdf(self, distribution, **kwargs):
+    def plot_cdf(self, distribution, extra_key='', **kwargs):
+        for infos in self.cdf.values():
+            for p in infos:
+                p.set_visible(False)
         for key, value in self.cdf_params.items():
             kwargs[key] = kwargs.get(key, value)
         x = distribution.range(max(self.xmax, - self.xmin))
         x = x[distribution.in_range(x)]
         x = np.concatenate([[self.xmin - 1], x, [self.xmax + 1]])
         cdf = distribution.cdf(x)
+        infos = []
         for k1, k2, y in zip(x[:-1], x[1:], cdf):
-            self.plot_shape(
+            infos.append(self.plot_shape(
                 shape_name='Rectangle',
-                xy=(k1, y),
+                xy=(k1, y - self.cdf_bar/self.x_over_y/2),
                 width=k2 - k1,
-                height=0,
-                **self.cdf_bar_params
-            )
+                height=self.cdf_bar/self.x_over_y,
+                **kwargs
+            ))
         for k, y1, y2 in zip(x[1:], cdf[:-1], cdf[1:]):
-            self.plot_shape(
+            infos.append(self.plot_shape(
                 shape_name='Rectangle',
-                xy=(k, y1),
-                width=0,
+                xy=(k - self.cdf_bar/2, y1),
+                width=self.cdf_bar,
                 height=y2 - y1,
-                **self.cdf_bar_params
+                **kwargs
+            ))
+        for k, y in zip(x[1:], cdf[:-1]):
+            infos.append(self.plot_shape(
+                shape_name='Ellipse',
+                xy=(k, y),
+                width=self.cdf_dot,
+                height=self.cdf_dot/self.x_over_y,
+                **kwargs
+            ))
+        for k, y in zip(x[1:], cdf[:-1]):
+            shape = self.plot_shape(
+                shape_name='Ellipse',
+                xy=(k, y),
+                width=self.cdf_inn,
+                height=self.cdf_inn/self.x_over_y,
+                **kwargs
             )
-        self.ax.plot(x[1:], cdf[:-1], **kwargs)
-        self.ax.plot(x[1:], cdf[:-1], **self.cdf_empty_marker_params)
-        self.ax.plot(x, cdf, **kwargs)
+            shape.set_color('white')
+            infos.append(shape)
+        for k, y in zip(x, cdf):
+            infos.append(self.plot_shape(
+                shape_name='Ellipse',
+                xy=(k, y),
+                width=self.cdf_dot,
+                height=self.cdf_dot/self.x_over_y,
+                **kwargs
+            ))
+        self.cdf[key] = infos
 
     def plot_fluctuations(self, distribution):
-        self.plot_shape(
-            shape_name='Rectangle',
-            xy=(distribution.E(), self.mean_shift - self.mean_height/2),
-            width=0,
-            height=self.mean_height,
-            **self.fluctuation_params
-        )
-        self.plot_shape(
-            shape_name='Rectangle',
-            xy=(distribution.E() - self.std_mult*distribution.sigma(), self.mean_shift),
-            width=2*self.std_mult*distribution.sigma(),
-            height=0,
-            **self.fluctuation_params
-        )
-        self.ax.plot(
-            distribution.E() - self.std_mult*distribution.sigma(),
-            self.mean_shift,
-            marker='<',
-            **self.fluctuation_ends_params
-        )
-        self.ax.plot(
-            distribution.E() + self.std_mult*distribution.sigma(),
-            self.mean_shift,
-            marker='>',
-            **self.fluctuation_ends_params
-        )
+        self.mean.set_x(distribution.E())
+        self.std.set_x(distribution.E() - self.std_mult*distribution.sigma())
+        self.std.set_width(2*self.std_mult*distribution.sigma())
 
     def plot_name(self, distribution):
-        self.plot_shape(
-            shape_name='PathPatch',
-            path=self.path_from_string(s=distribution.name(), **self.text_params),
-            **self.name_params
-        )
+        self.name.set_path(self.path_from_string(s=distribution.name(), **self.text_params))
 
-    def plot(self, distribution, bound):
+    def setup(self, distribution, bound):
         bounds = distribution.range(bound)
         bounds = np.min(bounds), np.max(bounds)
         xticks = self.get_ticks(
@@ -518,25 +519,51 @@ class DistributionPlot(plot):
             step=0.25,
         )
         self.x_over_y = (self.xmax - self.xmin)/(self.ymax - self.ymin)*self.figsize[1]/self.figsize[0]
-        self.__figure__()
+        self.reset()
         self.plot_axis(xticks, yticks)
+        self.pmf = {}
+        self.cdf = {}
+        self.mean = self.plot_shape(
+            shape_name='Rectangle',
+            xy=(0, self.mean_shift - self.mean_height/2),
+            width=0,
+            height=self.mean_height,
+            **self.fluctuation_params
+        )
+        self.std = self.plot_shape(
+            shape_name='Rectangle',
+            xy=(0, self.mean_shift),
+            width=0,
+            height=0,
+            **self.fluctuation_params
+        )
+        self.name = self.plot_shape(
+            shape_name='PathPatch',
+            path=self.path_from_string(s='.', **self.text_params),
+            **self.name_params
+        )
 
     def image(self, distribution, bound):
-        self.plot(distribution, bound)
+        self.setup(distribution, bound)
+        self.update_discrete(distribution)
+        self.save_image(name=self.file_name(distribution))
+
+    def update_discrete(self, distribution):
         self.plot_discrete(distribution)
         self.plot_fluctuations(distribution)
         self.plot_name(distribution)
-        self.save_image(name=self.file_name(distribution))
 
     def evolution(self, distribution, bound):
+        self.reset()
         params_list = distribution.params_list()
         distribution.update(**params_list[0])
-        self.plot(distribution, bound)
+        self.setup(distribution, bound)
+        self.update_discrete(distribution)
         for _ in range(int(self.fps*self.times['initial'])):
             self.new_frame()
         for params in params_list:
             distribution.update(**params)
-            self.plot(distribution, bound)
+            self.update_discrete(distribution)
             self.new_frame()
         for _ in range(int(self.fps*self.times['final'])):
             self.new_frame()
@@ -544,7 +571,6 @@ class DistributionPlot(plot):
 
     def run(self, distribution, bound=None, **kwargs):
         self.image(distribution, bound)
-        self.reset()
         self.evolution(distribution, bound)
 
     def binomial_and_poisson(self, bound=None, n_max=10, l=1):
@@ -564,6 +590,6 @@ if __name__ == '__main__':
     DP.new_param('--bound', type=int, default=1)
     DP.new_param('--n_max', type=int, default=1)
     DP.new_param('--l', type=float, default=1)
-    # X = Poisson()
-    # DP.run(X, **DP.get_kwargs())
-    DP.binomial_and_poisson(**DP.get_kwargs())
+    X = Poisson()
+    DP.run(X, **DP.get_kwargs())
+    # DP.binomial_and_poisson(**DP.get_kwargs())
