@@ -106,6 +106,7 @@ PARAMS = {
     'times' : {
         'initial' : 1,
         'final' : 1,
+        'binomial_and_poisson' : 8,
     },
 }
 
@@ -420,7 +421,13 @@ class DistributionPlot(plot):
         )
         self.plot_ticks(xticks, yticks)
 
-    def plot_discrete(self, distribution):
+    def plot_discrete(self, distribution, pmf_params={}, cdf_params={}):
+        self.plot_pmf(distribution, **pmf_params)
+        self.plot_cdf(distribution, **cdf_params)
+
+    def plot_pmf(self, distribution, **kwargs):
+        for key, value in self.pmf_bar_params.items():
+            kwargs[key] = kwargs.get(key, value)
         x = distribution.range(max(self.xmax, - self.xmin))
         x = x[distribution.in_range(x)]
         pmf = distribution.pmf(x)
@@ -431,8 +438,14 @@ class DistributionPlot(plot):
                 xy=(k, 0),
                 width=0,
                 height=y,
-                **self.pmf_bar_params
+                **kwargs
             )
+
+    def plot_cdf(self, distribution, **kwargs):
+        for key, value in self.cdf_params.items():
+            kwargs[key] = kwargs.get(key, value)
+        x = distribution.range(max(self.xmax, - self.xmin))
+        x = x[distribution.in_range(x)]
         x = np.concatenate([[self.xmin - 1], x, [self.xmax + 1]])
         cdf = distribution.cdf(x)
         for k1, k2, y in zip(x[:-1], x[1:], cdf):
@@ -451,9 +464,9 @@ class DistributionPlot(plot):
                 height=y2 - y1,
                 **self.cdf_bar_params
             )
-        self.ax.plot(x[1:], cdf[:-1], **self.cdf_marker_params)
+        self.ax.plot(x[1:], cdf[:-1], **kwargs)
         self.ax.plot(x[1:], cdf[:-1], **self.cdf_empty_marker_params)
-        self.ax.plot(x, cdf, **self.cdf_marker_params)
+        self.ax.plot(x, cdf, **kwargs)
 
     def plot_fluctuations(self, distribution):
         self.plot_shape(
@@ -507,15 +520,15 @@ class DistributionPlot(plot):
         self.x_over_y = (self.xmax - self.xmin)/(self.ymax - self.ymin)*self.figsize[1]/self.figsize[0]
         self.__figure__()
         self.plot_axis(xticks, yticks)
-        self.plot_discrete(distribution)
-        self.plot_fluctuations(distribution)
-        self.plot_name(distribution)
 
     def image(self, distribution, bound):
         self.plot(distribution, bound)
+        self.plot_discrete(distribution)
+        self.plot_fluctuations(distribution)
+        self.plot_name(distribution)
         self.save_image(name=self.file_name(distribution))
 
-    def video(self, distribution, bound):
+    def evolution(self, distribution, bound):
         params_list = distribution.params_list()
         distribution.update(**params_list[0])
         self.plot(distribution, bound)
@@ -529,18 +542,28 @@ class DistributionPlot(plot):
             self.new_frame()
         self.save_video(name=self.file_name(distribution))
 
-    def run(self, distribution, bound=None):
+    def run(self, distribution, bound=None, **kwargs):
         self.image(distribution, bound)
         self.reset()
-        self.video(distribution, bound)
+        self.evolution(distribution, bound)
+
+    def binomial_and_poisson(self, bound=None, n_max=10, l=1):
+        self.reset()
+        B = Binomial()
+        P = Poisson(l=l)
+        self.plot(P, bound=bound)
+        for _ in range(int(self.fps*self.times['initial'])):
+            self.new_frame()
+        for _ in range(int(self.fps*self.times['initial'])):
+            self.new_frame() 
+        self.save_video(name=f'BinomialPoisson(lambda={l})')       
 
 
 if __name__ == '__main__':
     DP = DistributionPlot()
-    DP.new_param('--bound', type=int, default=None)
-    X = DiscreteUniform(b=0)
-    X = Binomial(n=10)
-    X = Bernoulli()
-    X = Geometric()
-    X = Poisson(16)
-    DP.run(X, **DP.get_kwargs())
+    DP.new_param('--bound', type=int, default=1)
+    DP.new_param('--n_max', type=int, default=1)
+    DP.new_param('--l', type=float, default=1)
+    # X = Poisson()
+    # DP.run(X, **DP.get_kwargs())
+    DP.binomial_and_poisson(**DP.get_kwargs())
