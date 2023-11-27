@@ -11,7 +11,7 @@ CMAP = plot.get_cmap([
     ( 64/255, 149/255, 191/255),
     (  0/255,   0/255,   0/255),
 ])
-PMF_COLOUR = CMAP(0.7)
+PMDF_COLOUR = CMAP(0.7)
 CDF_COLOUR = CMAP(0.3)
 FLU_COLOUR = CMAP(0.5)
 PARAMS = {
@@ -54,13 +54,31 @@ PARAMS = {
     },
     'pmf_params' : {
         'lw' : 0,
-        'color' : PMF_COLOUR,
+        'color' : PMDF_COLOUR,
         'zorder' : 1,
     },
-    'cdf_params' : {
+    'pdf_params' : {
+        'lw' : 8,
+        'color' : PMDF_COLOUR,
+        'zorder' : 1,
+        'joinstyle' : 'round',
+        'capstyle' : 'round',
+        'fill' : False,
+        'closed' : False,
+    },
+    'discrete_cdf_params' : {
         'lw' : 0,
         'color' : CDF_COLOUR,
         'zorder' : 0,
+    },
+    'continuous_cdf_params' : {
+        'lw' : 8,
+        'color' : CDF_COLOUR,
+        'zorder' : 0,
+        'joinstyle' : 'round',
+        'capstyle' : 'round',
+        'fill' : False,
+        'closed' : False,
     },
     'fluctuation_params' : {
         'color' : FLU_COLOUR,
@@ -82,7 +100,7 @@ PARAMS = {
     },
     'name_params' : {
         'lw' : 1,
-        'color' : PMF_COLOUR,
+        'color' : PMDF_COLOUR,
         'zorder' : 3,
         'joinstyle' : 'round',
         'capstyle' : 'round',
@@ -311,6 +329,7 @@ class ContinuousDistribution(Distribution):
         self.__init__(**kwargs)
 
     def range(self, bound=None, step=0.1):
+        return np.arange(0, bound + step, step)
         LB = self.minimum
         UB = self.maximum
         if bound is not None:
@@ -371,7 +390,7 @@ class ContinuousUniform(ContinuousDistribution):
         self.variance = ((self.b - self.a)**2)/12
 
     def function(self, x):
-        return 1/(self.b - self.a + 1)
+        return 1/(self.b - self.a)
 
     def cumulative_function(self, x):
         y = (x - self.a)/(self.b - self.a)
@@ -379,17 +398,18 @@ class ContinuousUniform(ContinuousDistribution):
         return y
 
     @staticmethod
-    def params_list(n_steps=5, max_bound=10, size_return=2):
-        ps = [(0, 0)]*int(n_steps/2)
-        for i in range(max_bound):
-            ps += [(0, i + 1)]*n_steps
-        for i in range(max_bound):
-            ps += [(i + 1, max_bound)]*n_steps
-        for i in range(size_return):
-            ps += [(max_bound - i - 1, max_bound)]*n_steps
-        for i in range(max_bound - 1):
-            ps += [(max(0, max_bound - size_return - i - 1), max_bound - i - 1)]*n_steps
-        ps += [(0, 0)]*(n_steps - int(n_steps/2))
+    def params_list(n_steps=53, min_bound=1, max_bound=10, size_return=2):
+        ps = [(0, min_bound)]
+        for i in range(n_steps):
+            ps.append((0, min_bound + (max_bound - min_bound)*(i + 1)/n_steps))
+        for i in range(n_steps):
+            ps.append(((max_bound - min_bound)*(i + 1)/n_steps, max_bound))
+        for i in range(n_steps):
+            ratio = (i + 1)/n_steps
+            ps.append((
+                max(0, (max_bound - min_bound)*(1 - ratio) + (min_bound - size_return)*ratio),
+                min(max_bound, (max_bound - min_bound)*(1 - ratio) + (min_bound - size_return)*ratio + size_return)
+            ))
         return [{'a' : a, 'b' : b} for (a, b) in ps]
 
 
@@ -499,9 +519,9 @@ class DistributionPlot(plot):
         )
         self.plot_ticks(xticks, yticks)
 
-    def plot_discrete(self, distribution, key='', set_visible=False, pmf_params={}, cdf_params={}):
+    def plot_discrete(self, distribution, key='', set_visible=False, pmf_params={}, discrete_cdf_params={}):
         self.plot_pmf(distribution, key=key, set_visible=set_visible, **pmf_params)
-        self.plot_discrete_cdf(distribution, key=key, **cdf_params)
+        self.plot_discrete_cdf(distribution, key=key, **discrete_cdf_params)
 
     def plot_pmf(self, distribution, key='', set_visible=False, **kwargs):
         for infos in self.pmf.values():
@@ -541,7 +561,7 @@ class DistributionPlot(plot):
         for infos in self.cdf.values():
             for p in infos:
                 p.set_visible(False)
-        for k, v in self.cdf_params.items():
+        for k, v in self.discrete_cdf_params.items():
             kwargs[k] = kwargs.get(k, v)
         x = distribution.range(max(self.xmax, - self.xmin))
         x = x[distribution.in_range(x)]
@@ -593,99 +613,49 @@ class DistributionPlot(plot):
             ))
         self.cdf[key] = infos
 
-    def plot_discrete(self, distribution, key='', set_visible=False, pmf_params={}, cdf_params={}):
-        self.plot_pmf(distribution, key=key, set_visible=set_visible, **pmf_params)
-        self.plot_discrete_cdf(distribution, key=key, **cdf_params)
+    def plot_continuous(self, distribution, key='', set_visible=False, pmf_params={}, discrete_cdf_params={}):
+        self.plot_pdf(distribution, key=key, set_visible=set_visible, **pmf_params)
+        self.plot_continuous_cdf(distribution, key=key, set_visible=set_visible, **discrete_cdf_params)
 
     def plot_pdf(self, distribution, key='', set_visible=False, **kwargs):
-        for infos in self.pmf.values():
+        for infos in self.pdf.values():
             infos.set_visible(set_visible)
-        for k, v in self.pmf_params.items():
+        for k, v in self.pdf_params.items():
             kwargs[k] = kwargs.get(k, v)
             if 'visible' not in kwargs:
                 kwargs['visible'] = True
-        x = distribution.range(max(self.xmax, - self.xmin))
-        x = x[distribution.in_range(x)]
-        x = x[(x >= self.xmin) & (x <= self.xmax)]
-        pdf = distribution.pdf(x)
-        self.pdf[key] = 
-        for k, y in zip(x, pmf):
-            new_key = f'{key}{k}'
-            if new_key not in self.pmf:
-                self.pmf[new_key] = {
-                    'bar' : self.plot_shape(
-                        shape_name='Rectangle',
-                        xy=(k - self.pmf_bar/2, 0),
-                        width=self.pmf_bar,
-                        height=0,
-                    ),
-                    'dot' : self.plot_shape(
-                        shape_name='Ellipse',
-                        xy=(0, 0),
-                        width=self.pmf_dot,
-                        height=self.pmf_dot/self.x_over_y,
-                    ),
-                }
-            self.pmf[new_key]['bar'].set_height(y)
-            self.pmf[new_key]['bar'].set(**kwargs)
-            self.pmf[new_key]['dot'].set_center((k, y))
-            self.pmf[new_key]['dot'].set(**kwargs)
-
-    def plot_continuous_cdf(self, distribution, key='', **kwargs):
-        for infos in self.cdf.values():
-            for p in infos:
-                p.set_visible(False)
-        for k, v in self.cdf_params.items():
-            kwargs[k] = kwargs.get(k, v)
-        x = distribution.range(max(self.xmax, - self.xmin))
-        x = x[distribution.in_range(x)]
-        x = x[(x >= self.xmin) & (x <= self.xmax)]
-        x = np.concatenate([[self.xmin - 1], x, [self.xmax + 1]])
-        cdf = distribution.cdf(x)
-        infos = []
-        for k1, k2, y in zip(x[:-1], x[1:], cdf):
-            infos.append(self.plot_shape(
-                shape_name='Rectangle',
-                xy=(k1, y - self.cdf_bar/self.x_over_y/2),
-                width=k2 - k1,
-                height=self.cdf_bar/self.x_over_y,
-                **kwargs
-            ))
-        for k, y1, y2 in zip(x[1:], cdf[:-1], cdf[1:]):
-            infos.append(self.plot_shape(
-                shape_name='Rectangle',
-                xy=(k - self.cdf_bar/2, y1),
-                width=self.cdf_bar,
-                height=y2 - y1,
-                **kwargs
-            ))
-        for k, y in zip(x[1:], cdf[:-1]):
-            infos.append(self.plot_shape(
-                shape_name='Ellipse',
-                xy=(k, y),
-                width=self.cdf_dot,
-                height=self.cdf_dot/self.x_over_y,
-                **kwargs
-            ))
-        for k, y in zip(x[1:], cdf[:-1]):
-            shape = self.plot_shape(
-                shape_name='Ellipse',
-                xy=(k, y),
-                width=self.cdf_inn,
-                height=self.cdf_inn/self.x_over_y,
-                **kwargs
+        if key not in self.pdf:
+            self.pdf[key] = self.plot_shape(
+                shape_name='Polygon',
+                xy=[[0,0]],
             )
-            shape.set_color('white')
-            infos.append(shape)
-        for k, y in zip(x, cdf):
-            infos.append(self.plot_shape(
-                shape_name='Ellipse',
-                xy=(k, y),
-                width=self.cdf_dot,
-                height=self.cdf_dot/self.x_over_y,
-                **kwargs
-            ))
-        self.cdf[key] = infos
+        x = distribution.range(max(self.xmax, - self.xmin))
+        x = x[distribution.in_range(x)]
+        pdf = distribution.pdf(x)
+        x = np.concatenate([[self.xmin,x[0]],x,[x[-1],self.xmax]])
+        pdf = np.concatenate([[0,0],pdf,[0,0]])
+        self.pdf[key].set_xy(np.stack([x, pdf], axis=-1))
+        self.pdf[key].set(**kwargs)
+
+    def plot_continuous_cdf(self, distribution, key='', set_visible=False, **kwargs):
+        for infos in self.cdf.values():
+            infos.set_visible(set_visible)
+        for k, v in self.continuous_cdf_params.items():
+            kwargs[k] = kwargs.get(k, v)
+            if 'visible' not in kwargs:
+                kwargs['visible'] = True
+        if key not in self.cdf:
+            self.cdf[key] = self.plot_shape(
+                shape_name='Polygon',
+                xy=[[0,0]],
+            )
+        x = distribution.range(max(self.xmax, - self.xmin))
+        x = x[distribution.in_range(x)]
+        cdf = distribution.cdf(x)
+        x = np.concatenate([[self.xmin,x[0]],x,[x[-1],self.xmax]])
+        cdf = np.concatenate([[0,0],cdf,[1,1]])
+        self.cdf[key].set_xy(np.stack([x, cdf], axis=-1))
+        self.cdf[key].set(**kwargs)
 
     def plot_fluctuations(self, distribution, **kwargs):
         self.mean.set_x(distribution.E())
@@ -746,12 +716,19 @@ class DistributionPlot(plot):
             self.update_continuous(distribution)
         self.save_image(name=self.file_name(distribution))
 
-    def update_discrete(self, distribution, key='', set_visible=False, pmf_params={}, cdf_params={}, fluctuation_params={}, name_params={}):
-        self.plot_discrete(distribution, key=key, set_visible=set_visible, pmf_params=pmf_params, cdf_params=cdf_params)
+    def update(self, distribution, **kwargs):
+        if distribution.is_discrete:
+            self.update_discrete(distribution, **kwargs)
+        else:
+            self.update_continuous(distribution, **kwargs)
+
+    def update_discrete(self, distribution, key='', set_visible=False, pmf_params={}, discrete_cdf_params={}, fluctuation_params={}, name_params={}):
+        self.plot_discrete(distribution, key=key, set_visible=set_visible, pmf_params=pmf_params, discrete_cdf_params=discrete_cdf_params)
         self.plot_fluctuations(distribution, **fluctuation_params)
         self.plot_name(distribution, **name_params)
 
-    def update_continuous(self, distribution, key='', set_visible=False, pmf_params={}, cdf_params={}, fluctuation_params={}, name_params={}):
+    def update_continuous(self, distribution, key='', set_visible=False, pmf_params={}, discrete_cdf_params={}, fluctuation_params={}, name_params={}):
+        self.plot_continuous(distribution, key=key, set_visible=set_visible, pmf_params=pmf_params, discrete_cdf_params=discrete_cdf_params)
         self.plot_fluctuations(distribution, **fluctuation_params)
         self.plot_name(distribution, **name_params)
 
@@ -760,12 +737,12 @@ class DistributionPlot(plot):
         params_list = distribution.params_list()
         distribution.update(**params_list[0])
         self.setup(distribution, bound)
-        self.update_discrete(distribution)
+        self.update(distribution)
         for _ in range(int(self.fps*self.times['initial'])):
             self.new_frame()
         for params in params_list:
             distribution.update(**params)
-            self.update_discrete(distribution)
+            self.update(distribution)
             self.new_frame()
         for _ in range(int(self.fps*self.times['final'])):
             self.new_frame()
@@ -773,7 +750,7 @@ class DistributionPlot(plot):
 
     def run(self, distribution, bound=None, **kwargs):
         self.image(distribution, bound)
-        # self.evolution(distribution, bound)
+        self.evolution(distribution, bound)
 
     def binomial_and_poisson(self, use_pmf=True, bound=None, n_max=1, l=1):
         self.reset()
@@ -790,7 +767,7 @@ class DistributionPlot(plot):
             path=self.path_from_string(s=P.name(), **poisson_text_params),
             **poisson_name_params
         )
-        poisson_dist_params = self.cdf_params.copy()
+        poisson_dist_params = self.discrete_cdf_params.copy()
         poisson_dist_params['zorder'] = self.pmf_params['zorder']
         if use_pmf:
             self.plot_pmf(P, key='Poisson', **poisson_dist_params)
@@ -809,13 +786,13 @@ class DistributionPlot(plot):
         if use_pmf:
             default_params = {
                 'set_visible' : True,
-                'cdf_params' : {'visible' : False},
+                'discrete_cdf_params' : {'visible' : False},
                 'fluctuation_params' : {'visible' : False},
             }
         else:
             default_params = {
                 'pmf_params' : {'visible' : False},
-                'cdf_params' : self.pmf_params.copy(),
+                'discrete_cdf_params' : self.pmf_params.copy(),
                 'fluctuation_params' : {'visible' : False},
             }
         self.update_discrete(B, **default_params)
