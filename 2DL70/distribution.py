@@ -27,9 +27,9 @@ PARAMS = {
     'label_height' : 0.02,
     'pmf_bar' : 0.15,
     'pmf_dot' : 0.3,
-    'cdf_bar' : 0.1,
-    'cdf_dot' : 0.2,
-    'cdf_inn' : 0.08,
+    'cdf_bar' : 0.15,
+    'cdf_dot' : 0.3,
+    'cdf_inn' : 0.1,
     'mean_shift' : - 0.05,
     'mean_height' : 0.015,
     'std_mult' : 1.96,
@@ -123,8 +123,6 @@ class DiscreteDistribution(Distribution):
     def __init__(self, minimum=None, maximum=None):
         self.minimum = minimum
         self.maximum = maximum
-        self.is_discrete = True
-        self.is_continuous = False
 
     def update(self, **kwargs):
         for key in self.params:
@@ -298,6 +296,67 @@ class Poisson(DiscreteDistribution):
         ls = (1 - np.cos(2*np.pi*np.arange(n_steps + 1)/n_steps))/2
         return [{'l' : max_l*l} for l in ls]
 
+class ContinuousDistribution(Distribution):
+
+    def __init__(self, minimum=None, maximum=None):
+        self.minimum = minimum
+        self.maximum = maximum
+
+    def update(self, **kwargs):
+        for key in self.params:
+            if key not in kwargs:
+                kwargs[key] = getattr(self, key)
+        self.__init__(**kwargs)
+
+    def range(self, bound=None, step=0.1):
+        LB = self.minimum
+        UB = self.maximum
+        if bound is not None:
+            bound = bound
+            assert bound >= 0
+            if LB is None:
+                LB = - bound
+            else:
+                UB = bound
+        assert LB is not None and UB is not None
+        assert LB <= UB
+        return np.arange(LB, UB + step, step)
+
+    def in_range(self, x):
+        if isinstance(x, list):
+            x = np.array(x)
+        if self.minimum is None:
+            LB = True
+        else:
+            LB = x >= self.minimum
+        if self.maximum is None:
+            UB = True
+        else:
+            UB = x <= self.maximum
+        if isinstance(x, np.ndarray):
+            return LB & UB
+        else:
+            return LB and UB
+
+    def pdf(self, x):
+        if isinstance(x, list):
+            x = np.array(x)
+        if isinstance(x, np.ndarray):
+            y = np.zeros_like(x, dtype=float)
+            in_range = self.in_range(x)
+            y[in_range] = self.function(x[in_range])
+            return y
+        else:
+            if self.in_range(x):
+                return self.function(x)
+            else:
+                return 0.
+
+    def cdf(self, x):
+        if isinstance(x, list):
+            x = np.array(x)
+        return self.cumulative_function(x)
+
 
 class DistributionPlot(plot):
 
@@ -405,24 +464,26 @@ class DistributionPlot(plot):
         )
         self.plot_ticks(xticks, yticks)
 
-    def plot_discrete(self, distribution, pmf_params={}, cdf_params={}):
-        self.plot_pmf(distribution, **pmf_params)
-        self.plot_cdf(distribution, **cdf_params)
+    def plot_discrete(self, distribution, key='', set_visible=False, pmf_params={}, cdf_params={}):
+        self.plot_pmf(distribution, key=key, set_visible=set_visible, **pmf_params)
+        self.plot_cdf(distribution, key=key, **cdf_params)
 
-    def plot_pmf(self, distribution, extra_key='', **kwargs):
+    def plot_pmf(self, distribution, key='', set_visible=False, **kwargs):
         for k, infos in self.pmf.items():
-            infos['bar'].set_visible(False)
-            infos['dot'].set_visible(False)
-        for key, value in self.pmf_params.items():
-            kwargs[key] = kwargs.get(key, value)
-            kwargs['visible'] = True
+            infos['bar'].set_visible(set_visible)
+            infos['dot'].set_visible(set_visible)
+        for k, v in self.pmf_params.items():
+            kwargs[k] = kwargs.get(k, v)
+            if 'visible' not in kwargs:
+                kwargs['visible'] = True
         x = distribution.range(max(self.xmax, - self.xmin))
         x = x[distribution.in_range(x)]
+        x = x[(x >= self.xmin) & (x <= self.xmax)]
         pmf = distribution.pmf(x)
         for k, y in zip(x, pmf):
-            key = f'{extra_key}{k}'
-            if key not in self.pmf:
-                self.pmf[key] = {
+            new_key = f'{key}{k}'
+            if new_key not in self.pmf:
+                self.pmf[new_key] = {
                     'bar' : self.plot_shape(
                         shape_name='Rectangle',
                         xy=(k - self.pmf_bar/2, 0),
@@ -436,19 +497,20 @@ class DistributionPlot(plot):
                         height=self.pmf_dot/self.x_over_y,
                     ),
                 }
-            self.pmf[key]['bar'].set_height(y)
-            self.pmf[key]['bar'].set(**kwargs)
-            self.pmf[key]['dot'].set_center((k, y))
-            self.pmf[key]['dot'].set(**kwargs)
+            self.pmf[new_key]['bar'].set_height(y)
+            self.pmf[new_key]['bar'].set(**kwargs)
+            self.pmf[new_key]['dot'].set_center((k, y))
+            self.pmf[new_key]['dot'].set(**kwargs)
 
-    def plot_cdf(self, distribution, extra_key='', **kwargs):
+    def plot_cdf(self, distribution, key='', **kwargs):
         for infos in self.cdf.values():
             for p in infos:
                 p.set_visible(False)
-        for key, value in self.cdf_params.items():
-            kwargs[key] = kwargs.get(key, value)
+        for k, v in self.cdf_params.items():
+            kwargs[k] = kwargs.get(k, v)
         x = distribution.range(max(self.xmax, - self.xmin))
         x = x[distribution.in_range(x)]
+        x = x[(x >= self.xmin) & (x <= self.xmax)]
         x = np.concatenate([[self.xmin - 1], x, [self.xmax + 1]])
         cdf = distribution.cdf(x)
         infos = []
@@ -496,13 +558,16 @@ class DistributionPlot(plot):
             ))
         self.cdf[key] = infos
 
-    def plot_fluctuations(self, distribution):
+    def plot_fluctuations(self, distribution, **kwargs):
         self.mean.set_x(distribution.E())
         self.std.set_x(distribution.E() - self.std_mult*distribution.sigma())
         self.std.set_width(2*self.std_mult*distribution.sigma())
+        self.mean.set(**kwargs)
+        self.std.set(**kwargs)
 
-    def plot_name(self, distribution):
+    def plot_name(self, distribution, **kwargs):
         self.name.set_path(self.path_from_string(s=distribution.name(), **self.text_params))
+        self.name.set(**kwargs)
 
     def setup(self, distribution, bound):
         bounds = distribution.range(bound)
@@ -548,10 +613,10 @@ class DistributionPlot(plot):
         self.update_discrete(distribution)
         self.save_image(name=self.file_name(distribution))
 
-    def update_discrete(self, distribution):
-        self.plot_discrete(distribution)
-        self.plot_fluctuations(distribution)
-        self.plot_name(distribution)
+    def update_discrete(self, distribution, key='', set_visible=False, pmf_params={}, cdf_params={}, fluctuation_params={}, name_params={}):
+        self.plot_discrete(distribution, key=key, set_visible=set_visible, pmf_params=pmf_params, cdf_params=cdf_params)
+        self.plot_fluctuations(distribution, **fluctuation_params)
+        self.plot_name(distribution, **name_params)
 
     def evolution(self, distribution, bound):
         self.reset()
@@ -573,16 +638,72 @@ class DistributionPlot(plot):
         self.image(distribution, bound)
         self.evolution(distribution, bound)
 
-    def binomial_and_poisson(self, bound=None, n_max=10, l=1):
+    def binomial_and_poisson(self, use_pmf=True, bound=None, n_max=1, l=1):
         self.reset()
-        B = Binomial()
         P = Poisson(l=l)
-        self.plot(P, bound=bound)
+        self.setup(P, bound=bound)
+        poisson_text_params = self.text_params.copy()
+        poisson_text_params['anchor'] = 'north west'
+        poisson_text_params['y'] = 2 - poisson_text_params['y']
+        poisson_name_params = self.name_params.copy()
+        poisson_name_params['color'] = CDF_COLOUR
+        poisson_name_params['zorder'] = self.pmf_params['zorder']
+        poisson_name = self.plot_shape(
+            shape_name='PathPatch',
+            path=self.path_from_string(s=P.name(), **poisson_text_params),
+            **poisson_name_params
+        )
+        poisson_dist_params = self.cdf_params.copy()
+        poisson_dist_params['zorder'] = self.pmf_params['zorder']
+        if use_pmf:
+            self.plot_pmf(P, key='Poisson', **poisson_dist_params)
+        else:
+            self.plot_cdf(P, key='Poisson', **poisson_dist_params)
+
+        B = Binomial()
+        params_list = []
+        for n in range(1, n_max + 1):
+            params_list.append({
+                'n' : n,
+                'p' : min(l/n, 1),
+            })
+        time_per_step = int(np.ceil(self.fps*self.times['binomial_and_poisson']/len(params_list)))
+        B.update(**params_list[0])
+        if use_pmf:
+            default_params = {
+                'set_visible' : True,
+                'cdf_params' : {'visible' : False},
+                'fluctuation_params' : {'visible' : False},
+            }
+        else:
+            default_params = {
+                'pmf_params' : {'visible' : False},
+                'cdf_params' : self.pmf_params.copy(),
+                'fluctuation_params' : {'visible' : False},
+            }
+        self.update_discrete(B, **default_params)
+        if not use_pmf:
+            for p in self.cdf['Poisson']:
+                p.set_visible(True)
+
         for _ in range(int(self.fps*self.times['initial'])):
             self.new_frame()
+        for params in params_list:
+            B.update(**params)
+            self.update_discrete(B, **default_params)
+            if not use_pmf:
+                for p in self.cdf['Poisson']:
+                    p.set_visible(True)
+            for _ in range(time_per_step):
+                self.new_frame()
         for _ in range(int(self.fps*self.times['initial'])):
-            self.new_frame() 
-        self.save_video(name=f'BinomialPoisson(lambda={l})')       
+            self.new_frame()
+        name = 'BinomialPoisson'
+        if use_pmf:
+            name += '(PMF)'
+        else:
+            name += '(CDF)'
+        self.save_video(name=name)       
 
 
 if __name__ == '__main__':
@@ -590,6 +711,7 @@ if __name__ == '__main__':
     DP.new_param('--bound', type=int, default=1)
     DP.new_param('--n_max', type=int, default=1)
     DP.new_param('--l', type=float, default=1)
-    X = Poisson()
-    DP.run(X, **DP.get_kwargs())
-    # DP.binomial_and_poisson(**DP.get_kwargs())
+    DP.new_param('--use_pmf', type=int, default=1)
+    # X = Poisson()
+    # DP.run(X, **DP.get_kwargs())
+    DP.binomial_and_poisson(**DP.get_kwargs())
