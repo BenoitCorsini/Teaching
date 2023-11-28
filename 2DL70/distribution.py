@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.special import factorial
+from scipy.stats import norm
 
 
 class Distribution(object):
@@ -58,11 +59,11 @@ class DiscreteDistribution(Distribution):
         if isinstance(x, list):
             x = np.array(x)
         if self.minimum is None:
-            LB = True
+            LB = np.ones_like(x) > 0
         else:
             LB = x >= self.minimum
         if self.maximum is None:
-            UB = True
+            UB = np.ones_like(x) > 0
         else:
             UB = x <= self.maximum
         if isinstance(x, np.ndarray):
@@ -221,35 +222,32 @@ class ContinuousDistribution(Distribution):
         self.__init__(**kwargs)
 
     def range(self, bound=None, step=0.1):
-        return np.arange(0, bound + step, step)
         LB = self.minimum
         UB = self.maximum
         if bound is not None:
-            bound = bound
             assert bound >= 0
             if LB is None:
                 LB = - bound
             else:
                 UB = bound
+            if UB is None:
+                UB = bound
         assert LB is not None and UB is not None
         assert LB <= UB
-        return np.arange(LB, UB + step, step)
+        return np.arange(LB, UB + step, step=step)
 
     def in_range(self, x):
         if isinstance(x, list):
             x = np.array(x)
         if self.minimum is None:
-            LB = True
+            LB = np.ones_like(x) > 0
         else:
             LB = x >= self.minimum
         if self.maximum is None:
-            UB = True
+            UB = np.ones_like(x) > 0
         else:
             UB = x <= self.maximum
-        if isinstance(x, np.ndarray):
-            return LB & UB
-        else:
-            return LB and UB
+        return LB & UB
 
     def pdf(self, x):
         if isinstance(x, list):
@@ -304,3 +302,53 @@ class ContinuousUniform(ContinuousDistribution):
                 min(max_bound, (max_bound - min_bound)*(1 - ratio) + (min_bound - size_return)*ratio + size_return)
             ))
         return [{'a' : a, 'b' : b} for (a, b) in ps]
+
+class Exponential(ContinuousDistribution):
+
+    def __init__(self, l=1):
+        super().__init__(minimum=0)
+        assert l > 0
+        self.l = l
+        self.params = ['l']
+        self.params_name = {'l' : r'\lambda'}
+        self.mean = 1/self.l
+        self.variance = 1/self.l**2
+
+    def function(self, x):
+        return self.l*np.exp(-self.l*x)
+
+    def cumulative_function(self, x):
+        y = 1 - np.exp(-self.l*x)
+        y = y*(x >= 0)
+        return y
+
+    @staticmethod
+    def params_list(n_steps=160, min_l=0.01):
+        ls = (1 - np.cos(2*np.pi*np.arange(n_steps + 1)/n_steps))/2
+        ls = (1 - ls) + ls*min_l
+        return [{'l' : l} for l in ls]
+
+class Normal(ContinuousDistribution):
+
+    def __init__(self, mu=0, sigma_square=1):
+        super().__init__()
+        assert sigma_square > 0
+        self.mu = mu
+        self.sigma_square = sigma_square
+        self.params = ['mu', 'sigma_square']
+        self.params_name = {'mu' : r'\mu', 'sigma_square' : r'\sigma^2'}
+        self.mean = self.mu
+        self.variance = self.sigma_square
+
+    def function(self, x):
+        return np.exp(- ((x - self.mu)**2)/2/self.sigma_square)/np.sqrt(2*np.pi*self.sigma_square)
+
+    def cumulative_function(self, x):
+        return norm.cdf((x - self.mu)/self.sigma_square**0.5)
+
+    @staticmethod
+    def params_list(n_steps=160, mu_shift=8, min_sigma=0.4, max_sigma=10):
+        rs = np.sin(2*np.pi*np.arange(n_steps + 1)/n_steps)
+        mus = mu_shift*rs
+        sigma_squares = max_sigma**(rs*(1 + rs))/min_sigma**(rs*(1 - rs))
+        return [{'mu' : mu, 'sigma_square' : sigma_square} for (mu, sigma_square) in zip(mus, sigma_squares)]
