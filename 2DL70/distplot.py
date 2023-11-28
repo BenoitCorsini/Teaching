@@ -14,7 +14,7 @@ PMDF_COLOUR = CMAP(0.7)
 CDF_COLOUR = CMAP(0.3)
 FLU_COLOUR = CMAP(0.5)
 PARAMS = {
-    # 'dpi' : 10,
+    'dpi' : 10,
     'extra_left' : 0.2,
     'extra_right' : 0.2,
     'extra_bottom' : 0.1,
@@ -413,6 +413,7 @@ class DistributionPlot(plot):
         x = distribution.range(max(self.xmax, - self.xmin))
         x = x[distribution.in_range(x)]
         pdf = distribution.pdf(x)
+        # print(x, pdf)
         x = np.concatenate([[self.xmin,x[0]],x,[x[-1],self.xmax]])
         pdf = np.concatenate([[0,0],pdf,[0,0]])
         self.pdf[key].set_xy(np.stack([x, pdf], axis=-1))
@@ -472,7 +473,7 @@ class DistributionPlot(plot):
 
     def run(self, distribution, bound=None, **kwargs):
         self.image(distribution, bound)
-        # self.evolution(distribution, bound)
+        self.evolution(distribution, bound)
 
     def binomial_and_poisson(self, use_pmf=True, bound=None, n_max=1, l=1):
         self.reset()
@@ -549,5 +550,7 @@ if __name__ == '__main__':
     DP.new_param('--l', type=float, default=1)
     DP.new_param('--use_pmf', type=int, default=1)
     X = ContinuousUniform()
+    X = Exponential()
+    X = Normal()
     DP.run(X, **DP.get_kwargs())
     # DP.binomial_and_poisson(**DP.get_kwargs())
