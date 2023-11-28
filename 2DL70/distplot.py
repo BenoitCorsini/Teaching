@@ -32,6 +32,8 @@ PARAMS = {
     'mean_shift' : - 0.05,
     'mean_height' : 0.015,
     'std_mult' : 1.96,
+    'arrow_height' : 0.02,
+    'arrow_width' : 0.01,
     'grid_params' : {
         'lw' : 1,
         'color' : CMAP(0.75),
@@ -84,6 +86,7 @@ PARAMS = {
         'lw' : 3,
         'zorder' : 0,
         'capstyle' : 'round',
+        'joinstyle' : 'round',
     },
     'fluctuation_ends_params' : {
         'lw' : 0,
@@ -154,9 +157,18 @@ class DistributionPlot(plot):
             height=0,
             **self.fluctuation_params
         )
+        self.arrows = {}
+        for m in [- 1, 1]:
+            self.arrows[m] = self.plot_shape(
+                shape_name='Polygon',
+                xy=[[0, 0]],
+                fill=False,
+                closed=False,
+                **self.fluctuation_params
+            )
         self.name = self.plot_shape(
             shape_name='PathPatch',
-            path=self.path_from_string(s='.', **self.text_params),
+            path=self.path_from_string(s='.'),
             **self.name_params
         )
 
@@ -260,10 +272,24 @@ class DistributionPlot(plot):
 
     def plot_fluctuations(self, distribution, **kwargs):
         self.mean.set_x(distribution.E())
+        self.mean.set(**kwargs)
         self.std.set_x(distribution.E() - self.std_mult*distribution.sigma())
         self.std.set_width(2*self.std_mult*distribution.sigma())
-        self.mean.set(**kwargs)
         self.std.set(**kwargs)
+        for m in [- 1, 1]:
+            xy = np.array([
+                [
+                    distribution.E() + m*self.std_mult*distribution.sigma() - m*self.arrow_width,
+                    distribution.E() + m*self.std_mult*distribution.sigma(),
+                    distribution.E() + m*self.std_mult*distribution.sigma() - m*self.arrow_width,
+                ],
+                [
+                    self.mean_shift + self.arrow_height/2,
+                    self.mean_shift,
+                    self.mean_shift - self.arrow_height/2,
+                ],
+            ])
+            self.arrows[m].set_xy(xy.T)
 
     def plot_name(self, distribution, **kwargs):
         self.name.set_path(self.path_from_string(s=distribution.name(), **self.text_params))
@@ -446,7 +472,7 @@ class DistributionPlot(plot):
 
     def run(self, distribution, bound=None, **kwargs):
         self.image(distribution, bound)
-        self.evolution(distribution, bound)
+        # self.evolution(distribution, bound)
 
     def binomial_and_poisson(self, use_pmf=True, bound=None, n_max=1, l=1):
         self.reset()
