@@ -349,6 +349,7 @@ class Normal(ContinuousDistribution):
     @staticmethod
     def params_list(n_steps=160, mu_shift=8, min_sigma=0.4, max_sigma=10):
         rs = np.sin(2*np.pi*np.arange(n_steps + 1)/n_steps)
+        rs[-1] = 0
         mus = mu_shift*rs
         sigma_squares = max_sigma**(rs*(1 + rs))/min_sigma**(rs*(1 - rs))
         return [{'mu' : mu, 'sigma_square' : sigma_square} for (mu, sigma_square) in zip(mus, sigma_squares)]

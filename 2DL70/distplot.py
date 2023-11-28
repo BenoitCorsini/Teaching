@@ -14,7 +14,7 @@ PMDF_COLOUR = CMAP(0.7)
 CDF_COLOUR = CMAP(0.3)
 FLU_COLOUR = CMAP(0.5)
 PARAMS = {
-    'dpi' : 10,
+    # 'dpi' : 10,
     'extra_left' : 0.2,
     'extra_right' : 0.2,
     'extra_bottom' : 0.1,
@@ -32,8 +32,8 @@ PARAMS = {
     'mean_shift' : - 0.05,
     'mean_height' : 0.015,
     'std_mult' : 1.96,
-    'arrow_height' : 0.02,
-    'arrow_width' : 0.01,
+    'arrow_height' : 0.015,
+    'arrow_width' : 0.005,
     'grid_params' : {
         'lw' : 1,
         'color' : CMAP(0.75),
@@ -279,9 +279,9 @@ class DistributionPlot(plot):
         for m in [- 1, 1]:
             xy = np.array([
                 [
-                    distribution.E() + m*self.std_mult*distribution.sigma() - m*self.arrow_width,
+                    distribution.E() + m*self.std_mult*distribution.sigma() - m*self.arrow_width*self.x_over_y,
                     distribution.E() + m*self.std_mult*distribution.sigma(),
-                    distribution.E() + m*self.std_mult*distribution.sigma() - m*self.arrow_width,
+                    distribution.E() + m*self.std_mult*distribution.sigma() - m*self.arrow_width*self.x_over_y,
                 ],
                 [
                     self.mean_shift + self.arrow_height/2,
