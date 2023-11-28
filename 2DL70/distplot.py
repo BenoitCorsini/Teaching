@@ -27,8 +27,14 @@ PARAMS = {
     'pmf_bar' : 0.15,
     'pmf_dot' : 0.3,
     'cdf_bar' : 0.15,
-    'cdf_dot' : 0.3,
-    'cdf_inn' : 0.1,
+    'cdf_dot' : 0.15,
+    'cdf_inn' : 0.05,
+
+    'label_xshift' : 0.04,
+    'cdf_bar' : 0.1,
+    'cdf_dot' : 0.1,
+    'cdf_inn' : 0.05,
+
     'mean_shift' : - 0.05,
     'mean_height' : 0.015,
     'std_mult' : 1.96,
@@ -100,6 +106,12 @@ PARAMS = {
         'anchor' : 'south west',
         'height' : 0.05,
     },
+    'text_params' : {
+        'x' : 0 + 0.15,
+        'y' : 1 + 0.01,
+        'anchor' : 'south west',
+        'height' : 0.03,
+    },
     'name_params' : {
         'lw' : 1,
         'color' : PMDF_COLOUR,
@@ -111,6 +123,7 @@ PARAMS = {
         'initial' : 1,
         'final' : 1,
         'binomial_and_poisson' : 8,
+        'discrete_and_continuous' : 8,
     },
 }
 
@@ -290,6 +303,7 @@ class DistributionPlot(plot):
                 ],
             ])
             self.arrows[m].set_xy(xy.T)
+            self.arrows[m].set(**kwargs)
 
     def plot_name(self, distribution, **kwargs):
         self.name.set_path(self.path_from_string(s=distribution.name(), **self.text_params))
@@ -309,7 +323,7 @@ class DistributionPlot(plot):
                 kwargs['visible'] = True
         x = distribution.range(max(self.xmax, - self.xmin))
         x = x[distribution.in_range(x)]
-        x = x[(x >= self.xmin) & (x <= self.xmax)]
+        # x = x[(x >= self.xmin) & (x <= self.xmax)]
         pmf = distribution.pmf(x)
         for k, y in zip(x, pmf):
             new_key = f'{key}{k}'
@@ -341,7 +355,7 @@ class DistributionPlot(plot):
             kwargs[k] = kwargs.get(k, v)
         x = distribution.range(max(self.xmax, - self.xmin))
         x = x[distribution.in_range(x)]
-        x = x[(x >= self.xmin) & (x <= self.xmax)]
+        # x = x[(x >= self.xmin) & (x <= self.xmax)]
         x = np.concatenate([[self.xmin - 1], x, [self.xmax + 1]])
         cdf = distribution.cdf(x)
         infos = []
@@ -421,23 +435,24 @@ class DistributionPlot(plot):
 
     def plot_continuous_cdf(self, distribution, key='', set_visible=False, **kwargs):
         for infos in self.cdf.values():
-            infos.set_visible(set_visible)
+            for p in infos:
+                p.set_visible(False)
         for k, v in self.continuous_cdf_params.items():
             kwargs[k] = kwargs.get(k, v)
             if 'visible' not in kwargs:
                 kwargs['visible'] = True
         if key not in self.cdf:
-            self.cdf[key] = self.plot_shape(
+            self.cdf[key] = [self.plot_shape(
                 shape_name='Polygon',
                 xy=[[0,0]],
-            )
+            )]
         x = distribution.range(max(self.xmax, - self.xmin))
         x = x[distribution.in_range(x)]
         cdf = distribution.cdf(x)
         x = np.concatenate([[self.xmin,x[0]],x,[x[-1],self.xmax]])
         cdf = np.concatenate([[0,0],cdf,[1,1]])
-        self.cdf[key].set_xy(np.stack([x, cdf], axis=-1))
-        self.cdf[key].set(**kwargs)
+        self.cdf[key][0].set_xy(np.stack([x, cdf], axis=-1))
+        self.cdf[key][0].set(**kwargs)
 
     def update_continuous(self, distribution, key='', set_visible=False, pmf_params={}, discrete_cdf_params={}, fluctuation_params={}, name_params={}):
         self.plot_continuous(distribution, key=key, set_visible=set_visible, pmf_params=pmf_params, discrete_cdf_params=discrete_cdf_params)
@@ -475,7 +490,7 @@ class DistributionPlot(plot):
         self.image(distribution, bound)
         self.evolution(distribution, bound)
 
-    def binomial_and_poisson(self, use_pmf=True, bound=None, n_max=1, l=1):
+    def binomial_and_poisson(self, use_pmf=True, bound=None, n_max=1, l=1, **kwargs):
         self.reset()
         P = Poisson(l=l)
         self.setup(P, bound=bound)
@@ -540,7 +555,49 @@ class DistributionPlot(plot):
             name += '(PMF)'
         else:
             name += '(CDF)'
-        self.save_video(name=name)       
+        self.save_video(name=name)
+
+    def discrete_and_continuous(self, scaling_distribution, continuous_distribution, bound=None, max_scale=10, **kwargs):
+        self.reset()
+        self.setup(continuous_distribution, bound=bound)
+        continuous_text_params = self.text_params.copy()
+        continuous_text_params['anchor'] = 'north west'
+        continuous_text_params['y'] = 2 - continuous_text_params['y']
+        continuous_name_params = self.name_params.copy()
+        continuous_name_params['color'] = CDF_COLOUR
+        continuous_name_params['zorder'] = self.pdf_params['zorder']
+        continuous_name = self.plot_shape(
+            shape_name='PathPatch',
+            path=self.path_from_string(s=continuous_distribution.name(), **continuous_text_params),
+            **continuous_name_params
+        )
+        continuous_dist_params = self.continuous_cdf_params.copy()
+        continuous_dist_params['zorder'] = self.pdf_params['zorder']
+        self.plot_continuous_cdf(continuous_distribution, key='continuous', **continuous_dist_params)
+        params_list = []
+        for scale in range(1, max_scale + 1):
+            params_list.append({'scale' : scale})
+        time_per_step = int(np.ceil(self.fps*self.times['discrete_and_continuous']/len(params_list)))
+        scaling_distribution.update(**params_list[0])
+        default_params = {
+            'pmf_params' : {'visible' : False},
+            'discrete_cdf_params' : self.pmf_params.copy(),
+            'fluctuation_params' : {'visible' : False},
+        }
+        self.update(scaling_distribution, **default_params)
+        self.cdf['continuous'][0].set_visible(True)
+        # self.save_image()
+        for _ in range(int(self.fps*self.times['initial'])):
+            self.new_frame()
+        for params in params_list:
+            scaling_distribution.update(**params)
+            self.update(scaling_distribution, **default_params)
+            self.cdf['continuous'][0].set_visible(True)
+            for _ in range(time_per_step):
+                self.new_frame()
+        for _ in range(int(self.fps*self.times['initial'])):
+            self.new_frame()
+        self.save_video(name=scaling_distribution.__class__.__name__)
 
 
 if __name__ == '__main__':
@@ -549,8 +606,17 @@ if __name__ == '__main__':
     DP.new_param('--n_max', type=int, default=1)
     DP.new_param('--l', type=float, default=1)
     DP.new_param('--use_pmf', type=int, default=1)
-    X = ContinuousUniform()
-    X = Exponential()
-    X = Normal()
-    DP.run(X, **DP.get_kwargs())
+    DP.new_param('--max_scale', type=int, default=1)
+    # X = Poisson()
+    # X = Normal()
+    # DP.run(X, **DP.get_kwargs())
     # DP.binomial_and_poisson(**DP.get_kwargs())
+    scaling_distribution, continuous_distribution = ScalingUniform(), ContinuousUniform()
+    scaling_distribution, continuous_distribution = ScalingGeometric(), Exponential()
+    scaling_distribution, continuous_distribution = ScalingBinomial(), Normal()
+    scaling_distribution, continuous_distribution = ScalingPoisson(), Normal()
+    DP.discrete_and_continuous(
+        scaling_distribution,
+        continuous_distribution,
+        **DP.get_kwargs()
+    )

@@ -53,6 +53,8 @@ class DiscreteDistribution(Distribution):
                 LB = - bound
             else:
                 UB = bound
+            if UB is None:
+                UB = bound
         assert LB is not None and UB is not None
         assert isinstance(LB, int) and isinstance(UB, int)
         assert LB <= UB
@@ -211,22 +213,23 @@ class Poisson(DiscreteDistribution):
         return [{'l' : max_l*l} for l in ls]
 
 
-class ScalingDistribution(Distribution):
+class ScalingDistribution(DiscreteDistribution):
 
     def range(self, bound=None):
         LB = self.minimum
         UB = self.maximum
         if bound is not None:
-            bound = int(bound)
+            bound = bound
             assert bound >= 0
             if LB is None:
                 LB = - bound
             else:
                 UB = bound
+            if UB is None:
+                UB = bound
         assert LB is not None and UB is not None
-        assert isinstance(LB, int) and isinstance(UB, int)
         assert LB <= UB
-        return np.arange(LB, UB + 1)
+        return np.arange(LB, UB + self.step, step=self.step)
 
     def in_range(self, x):
         if isinstance(x, list):
@@ -238,23 +241,23 @@ class ScalingDistribution(Distribution):
         if self.maximum is None:
             UB = np.ones_like(x) > 0
         else:
-            UB = x <= self.maximum
-        if isinstance(x, np.ndarray):
-            return (x.astype(int) == x) & LB & UB
-        else:
-            return x == int(x) and LB and UB
+            UB = x <= self.maximum + 0.1
+        return LB & UB
 
     def name(self, digits=2):
-        name = r'$\mathrm{' + self.__class__.__name__ + '}('
+        name = r'$\mathrm{' + self.__class__.__name__.replace('Scaling', '') + '}('
         scale = getattr(self, 'scale', 1)
         for key in self.params:
-            value = getattr(self, key)
-            if hasattr(self, 'params_name'):
-                key = self.params_name.get(key, key)
-            if isinstance(value, float):
-                value = int(value*10**digits)/10**digits
-            name += f'{key}={scale*value},'
-        name = name[:-1] + ')$' + f'/{scale}'
+            if key != 'scale':
+                value = getattr(self, '_' + key)
+                if hasattr(self, 'params_name'):
+                    key = self.params_name.get(key, key)
+                if isinstance(value, float):
+                    value = int(value*10**digits)/10**digits
+                name += f'{key}={value},'
+        name = name[:-1] + ')$'
+        if scale != 1:
+            name +=  f'/{scale}'
         return name
 
 class ScalingUniform(ScalingDistribution):
@@ -267,7 +270,10 @@ class ScalingUniform(ScalingDistribution):
         self.a = a
         self.b = b
         self.scale = scale
-        self.params = ['a', 'b']
+        self._a = self.a*self.scale
+        self._b = self.b*self.scale
+        self.step = 1/self.scale
+        self.params = ['a', 'b', 'scale']
         self.mean = (self.a + self.b)/2
         self.variance = ((self.b*self.scale - self.a*self.scale + 1)**2 - 1)/12/self.scale**2
 
@@ -277,19 +283,90 @@ class ScalingUniform(ScalingDistribution):
     def cumulative_function(self, x):
         return 0
 
-    @staticmethod
-    def params_list(n_steps=5, max_bound=10, size_return=2):
-        ps = [(0, 0)]*int(n_steps/2)
-        for i in range(max_bound):
-            ps += [(0, i + 1)]*n_steps
-        for i in range(max_bound):
-            ps += [(i + 1, max_bound)]*n_steps
-        for i in range(size_return):
-            ps += [(max_bound - i - 1, max_bound)]*n_steps
-        for i in range(max_bound - 1):
-            ps += [(max(0, max_bound - size_return - i - 1), max_bound - i - 1)]*n_steps
-        ps += [(0, 0)]*(n_steps - int(n_steps/2))
-        return [{'a' : int(a), 'b' : int(b)} for (a, b) in ps]
+class ScalingGeometric(ScalingDistribution):
+
+    def __init__(self, p=1, scale=1):
+        super().__init__(minimum=1/scale)
+        assert 0 < p and p <= 1
+        self.p = p
+        self.params = ['p']
+        self.scale = scale
+        self._p = self.p/self.scale
+        self.step = 1/self.scale
+        self.params = ['p', 'scale']
+        self.mean = 1/self.p
+        self.variance = (1 - self.p/self.scale)/self.p**2
+
+    def function(self, x):
+        return self.p/self.scale*(1 - self.p/self.scale)**(x*self.scale - 1)
+
+    def cumulative_function(self, x):
+        return 0
+
+class ScalingBinomial(ScalingDistribution):
+
+    def __init__(self, n=1, p=0.5, scale=1):
+        minimum = - scale*n*p/np.sqrt(scale*n*p*(1 - p))
+        maximum = scale*n*(1 - p)/np.sqrt(scale*n*p*(1 - p))
+        super().__init__(minimum=minimum, maximum=maximum)
+        assert isinstance(n, int) and n >= 0
+        assert 0 <= p and p <= 1
+        self.n = n
+        self.p = p
+        self.scale = scale
+        self.step = (maximum - minimum)/self.n/self.scale
+        self.params = ['n', 'p']
+        self.mean = 0
+        self.variance = 1
+
+    def name(self, digits=2):
+        n = int(self.scale*self.n)
+        p = int(self.p*10**digits)/10**digits
+        mean = int(self.scale*self.n*self.p*10**digits)/10**digits
+        std = int(np.sqrt(self.scale*self.n*self.p*(1 - self.p))*10**digits)/10**digits
+        name = r'$(\mathrm{Bin}('
+        name += f'n={n},p={p})-{mean})/{std}'
+        name += r'$'
+        return name
+
+    def function(self, x):
+        x = self.scale*self.n*self.p + x*np.sqrt(self.scale*self.n*self.p*(1 - self.p))
+        x = (x + 0.5).astype(int)
+        return self.p**x*(1 - self.p)**(self.scale*self.n - x)*factorial(self.scale*self.n)/factorial(x)/factorial(self.scale*self.n - x)
+
+    def cumulative_function(self, x):
+        return 0
+
+class ScalingPoisson(ScalingDistribution):
+
+    def __init__(self, l=1, scale=1):
+        minimum = - np.sqrt(scale*l)
+        super().__init__(minimum=minimum)
+        assert l >= 0
+        self.l = l
+        self.params = ['l']
+        self.scale = scale
+        self.step = 1/np.sqrt(self.scale*self.l)
+        self.params_name = {'l' : r'\lambda'}
+        self.mean = self.scale*self.l
+        self.variance = self.scale*self.l
+
+    def name(self, digits=2):
+        l = int(self.scale*self.l*10**digits)/10**digits
+        mean = l
+        std = int(np.sqrt(self.scale*self.l)*10**digits)/10**digits
+        name = r'$(\mathrm{Poi}(\lambda='
+        name += f'{l})-{mean})/{std}'
+        name += r'$'
+        return name
+
+    def function(self, x):
+        x = self.scale*self.l + x*np.sqrt(self.scale*self.l)
+        x = (x + 0.5).astype(int)
+        return (self.scale*self.l)**x*np.exp(- self.scale*self.l)/factorial(x)
+
+    def cumulative_function(self, x):
+        return 0
 
 
 class ContinuousDistribution(Distribution):
