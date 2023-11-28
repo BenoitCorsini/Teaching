@@ -5,6 +5,11 @@ from scipy.stats import norm
 
 class Distribution(object):
 
+    def __init__(self, is_discrete, minimum=None, maximum=None):
+        self.is_discrete = is_discrete
+        self.minimum = minimum
+        self.maximum = maximum
+
     def E(self):
         return self.mean
 
@@ -13,6 +18,12 @@ class Distribution(object):
 
     def sigma(self):
         return np.sqrt(self.variance)
+
+    def update(self, **kwargs):
+        for key in self.params:
+            if key not in kwargs:
+                kwargs[key] = getattr(self, key)
+        self.__init__(**kwargs)
 
     def name(self, digits=2):
         name = r'$\mathrm{' + self.__class__.__name__ + '}('
@@ -29,16 +40,8 @@ class Distribution(object):
 
 class DiscreteDistribution(Distribution):
 
-    def __init__(self, minimum=None, maximum=None):
-        self.minimum = minimum
-        self.maximum = maximum
-        self.is_discrete = True
-
-    def update(self, **kwargs):
-        for key in self.params:
-            if key not in kwargs:
-                kwargs[key] = getattr(self, key)
-        self.__init__(**kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(is_discrete=True, *args, **kwargs)
 
     def range(self, bound=None):
         LB = self.minimum
@@ -208,18 +211,91 @@ class Poisson(DiscreteDistribution):
         return [{'l' : max_l*l} for l in ls]
 
 
+class ScalingDistribution(Distribution):
+
+    def range(self, bound=None):
+        LB = self.minimum
+        UB = self.maximum
+        if bound is not None:
+            bound = int(bound)
+            assert bound >= 0
+            if LB is None:
+                LB = - bound
+            else:
+                UB = bound
+        assert LB is not None and UB is not None
+        assert isinstance(LB, int) and isinstance(UB, int)
+        assert LB <= UB
+        return np.arange(LB, UB + 1)
+
+    def in_range(self, x):
+        if isinstance(x, list):
+            x = np.array(x)
+        if self.minimum is None:
+            LB = np.ones_like(x) > 0
+        else:
+            LB = x >= self.minimum
+        if self.maximum is None:
+            UB = np.ones_like(x) > 0
+        else:
+            UB = x <= self.maximum
+        if isinstance(x, np.ndarray):
+            return (x.astype(int) == x) & LB & UB
+        else:
+            return x == int(x) and LB and UB
+
+    def name(self, digits=2):
+        name = r'$\mathrm{' + self.__class__.__name__ + '}('
+        scale = getattr(self, 'scale', 1)
+        for key in self.params:
+            value = getattr(self, key)
+            if hasattr(self, 'params_name'):
+                key = self.params_name.get(key, key)
+            if isinstance(value, float):
+                value = int(value*10**digits)/10**digits
+            name += f'{key}={scale*value},'
+        name = name[:-1] + ')$' + f'/{scale}'
+        return name
+
+class ScalingUniform(ScalingDistribution):
+
+    def __init__(self, a=0, b=1, scale=1):
+        super().__init__(minimum=a, maximum=b)
+        assert isinstance(a, int)
+        assert isinstance(b, int)
+        assert a <= b
+        self.a = a
+        self.b = b
+        self.scale = scale
+        self.params = ['a', 'b']
+        self.mean = (self.a + self.b)/2
+        self.variance = ((self.b*self.scale - self.a*self.scale + 1)**2 - 1)/12/self.scale**2
+
+    def function(self, x):
+        return 1/(self.b*self.scale - self.a*self.scale + 1)
+
+    def cumulative_function(self, x):
+        return 0
+
+    @staticmethod
+    def params_list(n_steps=5, max_bound=10, size_return=2):
+        ps = [(0, 0)]*int(n_steps/2)
+        for i in range(max_bound):
+            ps += [(0, i + 1)]*n_steps
+        for i in range(max_bound):
+            ps += [(i + 1, max_bound)]*n_steps
+        for i in range(size_return):
+            ps += [(max_bound - i - 1, max_bound)]*n_steps
+        for i in range(max_bound - 1):
+            ps += [(max(0, max_bound - size_return - i - 1), max_bound - i - 1)]*n_steps
+        ps += [(0, 0)]*(n_steps - int(n_steps/2))
+        return [{'a' : int(a), 'b' : int(b)} for (a, b) in ps]
+
+
 class ContinuousDistribution(Distribution):
 
-    def __init__(self, minimum=None, maximum=None):
-        self.minimum = minimum
-        self.maximum = maximum
-        self.is_discrete = False
-
-    def update(self, **kwargs):
-        for key in self.params:
-            if key not in kwargs:
-                kwargs[key] = getattr(self, key)
-        self.__init__(**kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(is_discrete=False, *args, **kwargs)
 
     def range(self, bound=None, step=0.1):
         LB = self.minimum
