@@ -61,7 +61,28 @@ PARAMS = {
 }
 
 
-class Temperature(object):
+
+class Dataset(object):
+
+    def get_xbounds(self):
+        vmin = np.min(self.data)
+        vmax = np.max(self.data)
+        return vmin, vmax
+
+    def get_counts(self, bars, xticks, normalize):
+        tick_diff = xticks[1] - xticks[0]
+        assert np.all(xticks[1:] - xticks[:-1] == tick_diff)
+        ticks = np.stack([xticks + i*tick_diff/bars for i in range(bars)])
+        ticks = np.reshape(ticks, -1, order='F')
+        tick_diff = ticks[1] - ticks[0]
+        assert np.all(np.abs(ticks[1:] - ticks[:-1] - tick_diff) < 1e-10)
+        counts = np.array([np.sum((bottom <= self.data)*(top >= self.data)) for (bottom, top) in zip(ticks[:-1], ticks[1:])], dtype=int)
+        if normalize:
+            counts = counts/np.size(self.data)
+        return ticks, counts
+
+
+class Temperature(Dataset):
 
     def __init__(self, data_dir='../data', temperature_file='Eindhoven 2022.csv'):
         self.data_dir = data_dir
@@ -71,24 +92,10 @@ class Temperature(object):
         self.Tmin = self.temperatures['Min Temperature'].to_numpy()
         self.Tavg = self.temperatures['Avg Temperature'].to_numpy()
         self.Tmax = self.temperatures['Max Temperature'].to_numpy()
-        self.Tall = np.sort(np.concatenate([self.Tmin, self.Tavg, self.Tmax]))
+        self.data = np.sort(np.concatenate([self.Tmin, self.Tavg, self.Tmax]))
+        self.data = self.Tavg
         assert np.all(self.Tmin <= self.Tavg)
         assert np.all(self.Tmax >= self.Tavg)
-
-    def get_xbounds(self):
-        Tmin = np.min(self.Tall)
-        Tmax = np.max(self.Tall)
-        return Tmin, Tmax
-
-    def get_counts(self, bars, xticks):
-        tick_diff = xticks[1] - xticks[0]
-        assert np.all(xticks[1:] - xticks[:-1] == tick_diff)
-        ticks = np.stack([xticks + i*tick_diff/bars for i in range(bars)])
-        ticks = np.reshape(ticks, -1, order='F')
-        tick_diff = ticks[1] - ticks[0]
-        assert np.all(np.abs(ticks[1:] - ticks[:-1] - tick_diff) < 1e-10)
-        counts = np.array([np.sum((bottom <= self.Tall)*(top >= self.Tall)) for (bottom, top) in zip(ticks[:-1], ticks[1:])], dtype=int)
-        return ticks, counts
 
 
 class StatsPlot(plot):
@@ -99,18 +106,26 @@ class StatsPlot(plot):
     def file_name(self, data):
         return data.__class__.__name__.lower()
 
-    def setup(self, data, bars=1):
+    def setup(self, data, bars=1, normalize=False):
         xticks = self.get_ticks(
             bounds=data.get_xbounds(),
             extras=(self.extra_left, self.extra_right),
             axis='x',
         ).astype(int)
-        histo_info = data.get_counts(bars, xticks)
-        yticks = self.get_ticks(
-            bounds=(0, np.max(histo_info[1])),
-            extras=(self.extra_bottom, self.extra_top),
-            axis='y',
-        ).astype(int)
+        histo_info = data.get_counts(bars, xticks, normalize)
+        if normalize:
+            yticks = self.get_ticks(
+                bounds=(0, np.max(histo_info[1])),
+                extras=(self.extra_bottom, self.extra_top),
+                axis='y',
+                step=0.01,
+            )
+        else:
+            yticks = self.get_ticks(
+                bounds=(0, np.max(histo_info[1])),
+                extras=(self.extra_bottom, self.extra_top),
+                axis='y',
+            ).astype(int)
         self.x_over_y = (self.xmax - self.xmin)/(self.ymax - self.ymin)*self.figsize[1]/self.figsize[0]
         self.reset()
         self.plot_axis(xticks, yticks)
@@ -121,8 +136,8 @@ class StatsPlot(plot):
         maximum = (1 + extras[1])*bounds[1] - extras[1]*bounds[0]
         step *= np.ceil((maximum - minimum)/step/self.max_ticks)
         ticks = np.concatenate([
-            - np.arange(step, - int(minimum) + 1 + step, step=step)[::-1],
-            np.arange(0, int(maximum) + 1 + step, step=step),
+            - np.arange(step, - minimum + 1 + step, step=step)[::-1],
+            np.arange(0, maximum + 1 + step, step=step),
         ])
         ticks = ticks[(minimum - step <= ticks) & (ticks <= maximum + step)]
         setattr(self, axis + 'min', minimum)
@@ -223,8 +238,8 @@ class StatsPlot(plot):
             )
 
     def plot_normal(self, T, norm, n_points=200):
-        mean = np.mean(T.Tall)
-        std = np.std(T.Tall)
+        mean = np.mean(T.data)
+        std = np.std(T.data)
         x = np.arange(n_points + 1)/n_points
         x = self.xmin + (self.xmax - self.xmin)*x
         y = norm*np.exp( - (x - mean)**2/2/std**2)/std/np.sqrt(2*np.pi)
@@ -234,8 +249,8 @@ class StatsPlot(plot):
             **self.normal_params
         )
 
-    def plot_histogram(self, data, bars=1, transparent=False, **kwargs):
-        ticks, counts = self.setup(data, bars)
+    def plot_histogram(self, data, bars=1, transparent=False, normalize=False, **kwargs):
+        ticks, counts = self.setup(data, bars, normalize)
         self.histogram(ticks, counts)
         self.plot_normal(data, np.sum(counts)*(ticks[1] - ticks[0]))
         self.save_image(name=self.file_name(data), transparent=transparent)
@@ -245,4 +260,5 @@ if __name__ == '__main__':
     SP = StatsPlot()
     SP.new_param('--transparent', type=int, default=0)
     SP.new_param('--bars', type=int, default=1)
+    SP.new_param('--normalize', type=int, default=0)
     SP.plot_histogram(Temperature(), **SP.get_kwargs())
