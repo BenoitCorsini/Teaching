@@ -90,13 +90,15 @@ class Figure(object):
         )
         self.ax.add_patch(patches.PathPatch(
             path=path,
-            color=self.copyright.get('ec', 'white'),
-            lw=self.copyright.get('lw', 0),
+            lw=0,
+            color=self.copyright.get('fc', 'black'),
             **self.copyright.get('params', {})
         ))
         self.ax.add_patch(patches.PathPatch(
             path=path,
-            color=self.copyright.get('fc', 'black'),
+            lw=self.copyright.get('lw', 0),
+            color=self.copyright.get('ec', 'black'),
+            fill=False,
             **self.copyright.get('params', {})
         ))
 

@@ -15,7 +15,7 @@ PARAMS = {
         'ratio' : 0.05,
         'margin' : 0.02,
         'lw' : 2,
-        'ec' : 'white',
+        'ec' : 'grey',
         'fc' : 'black',
         'params' : {
             'zorder' : 1000,
