@@ -18,10 +18,10 @@ PARAMS = {
     'extra_bottom' : 0.05,
     'extra_top' : 0.1,
     'max_ticks' : 15,
-    'tick_height' : 1,
-    'label_xshift' : 0.4,
-    'label_yshift' : 1,
-    'label_height' : 1.5,
+    'tick_height' : 0.007,
+    'label_xshift' : 0.007,
+    'label_yshift' : 0.007,
+    'label_height' : 0.01,
     'grid_params' : {
         'lw' : 1,
         'color' : CMAP(0.75),
@@ -91,21 +91,21 @@ class Temperature(object):
         return ticks, counts
 
 
-class TemperaturePlot(plot):
+class StatsPlot(plot):
 
     def __init__(self):
         super().__init__(**PARAMS)
 
-    def file_name(self):
-        return 'temperature'
+    def file_name(self, data):
+        return data.__class__.__name__.lower()
 
-    def setup(self, T, bars=1):
+    def setup(self, data, bars=1):
         xticks = self.get_ticks(
-            bounds=T.get_xbounds(),
+            bounds=data.get_xbounds(),
             extras=(self.extra_left, self.extra_right),
             axis='x',
         ).astype(int)
-        histo_info = T.get_counts(bars, xticks)
+        histo_info = data.get_counts(bars, xticks)
         yticks = self.get_ticks(
             bounds=(0, np.max(histo_info[1])),
             extras=(self.extra_bottom, self.extra_top),
@@ -117,8 +117,6 @@ class TemperaturePlot(plot):
         return histo_info
 
     def get_ticks(self, bounds, extras, axis, step=1):
-        if extras is None:
-            extras = self.extra_bottom, self.extra_top
         minimum = (1 + extras[0])*bounds[0] - extras[0]*bounds[1]
         maximum = (1 + extras[1])*bounds[1] - extras[1]*bounds[0]
         step *= np.ceil((maximum - minimum)/step/self.max_ticks)
@@ -148,9 +146,9 @@ class TemperaturePlot(plot):
         )
         label = self.path_from_string(
             s=str(0),
-            x= - self.label_xshift,
-            y= - self.label_yshift,
-            height=self.label_height,
+            x= - self.label_xshift*(self.xmax - self.xmin),
+            y= - self.label_yshift*(self.ymax - self.ymin),
+            height=self.label_height*(self.ymax - self.ymin),
             anchor='north east',
         )
         self.plot_shape(
@@ -162,16 +160,16 @@ class TemperaturePlot(plot):
             if xt:
                 self.plot_shape(
                     shape_name='Rectangle',
-                    xy=(xt, - self.tick_height/2),
+                    xy=(xt, - (self.ymax - self.ymin)*self.tick_height/2),
                     width=0,
-                    height=self.tick_height,
+                    height=(self.ymax - self.ymin)*self.tick_height,
                     **self.axis_params
                 )
                 label = self.path_from_string(
                     s=str(xt),
-                    x=xt - self.label_xshift,
-                    y= - self.label_yshift,
-                    height=self.label_height,
+                    x=xt - (self.xmax - self.xmin)*self.label_xshift,
+                    y= - (self.ymax - self.ymin)*self.label_yshift,
+                    height=(self.ymax - self.ymin)*self.label_height,
                     anchor='north east',
                 )
                 self.plot_shape(
@@ -184,16 +182,16 @@ class TemperaturePlot(plot):
             if yt:
                 self.plot_shape(
                     shape_name='Rectangle',
-                    xy=(- tick_width/2, yt),
-                    width=tick_width,
+                    xy=(- self.x_over_y*(self.ymax - self.ymin)*self.tick_height/2, yt),
+                    width=self.x_over_y*(self.ymax - self.ymin)*self.tick_height,
                     height=0,
                     **self.axis_params
                 )
                 label = self.path_from_string(
                     s=str(yt),
-                    x= - self.label_xshift,
-                    y=yt - self.label_yshift,
-                    height=self.label_height,
+                    x= - (self.xmax - self.xmin)*self.label_xshift,
+                    y=yt - (self.ymax - self.ymin)*self.label_yshift,
+                    height=(self.ymax - self.ymin)*self.label_height,
                     anchor='north east',
                 )
                 self.plot_shape(
@@ -236,15 +234,15 @@ class TemperaturePlot(plot):
             **self.normal_params
         )
 
-    def plot_histogram(self, T, bars=1, transparent=False, **kwargs):
-        ticks, counts = self.setup(T, bars)
+    def plot_histogram(self, data, bars=1, transparent=False, **kwargs):
+        ticks, counts = self.setup(data, bars)
         self.histogram(ticks, counts)
-        self.plot_normal(T, np.sum(counts)*(ticks[1] - ticks[0]))
-        self.save_image(name=self.file_name(), transparent=transparent)
+        self.plot_normal(data, np.sum(counts)*(ticks[1] - ticks[0]))
+        self.save_image(name=self.file_name(data), transparent=transparent)
 
 
 if __name__ == '__main__':
-    TP = TemperaturePlot()
-    TP.new_param('--transparent', type=int, default=0)
-    TP.new_param('--bars', type=int, default=1)
-    TP.plot_histogram(Temperature(), **TP.get_kwargs())
+    SP = StatsPlot()
+    SP.new_param('--transparent', type=int, default=0)
+    SP.new_param('--bars', type=int, default=1)
+    SP.plot_histogram(Temperature(), **SP.get_kwargs())
