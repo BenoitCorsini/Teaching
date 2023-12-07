@@ -64,6 +64,11 @@ PARAMS = {
 
 class Dataset(object):
 
+    def __init__(self, data_file, data_dir='../data'):
+        self.data_dir = data_dir
+        self.data_file = data_file
+        self.file = osp.join(self.data_dir, self.data_file)
+
     def get_xbounds(self):
         vmin = np.min(self.data)
         vmax = np.max(self.data)
@@ -84,15 +89,13 @@ class Dataset(object):
 
 class Temperature(Dataset):
 
-    def __init__(self, data_dir='../data', temperature_file='Eindhoven 2022.csv'):
-        self.data_dir = data_dir
-        self.temperature_file = temperature_file
-        self.file = osp.join(self.data_dir, self.temperature_file)
+    def __init__(self, temperature_file='Eindhoven 2022.csv'):
+        super().__init__(data_file=temperature_file)
         self.temperatures = pd.read_csv(self.file, index_col=0)
         self.Tmin = self.temperatures['Min Temperature'].to_numpy()
         self.Tavg = self.temperatures['Avg Temperature'].to_numpy()
         self.Tmax = self.temperatures['Max Temperature'].to_numpy()
-        self.data = np.sort(np.concatenate([self.Tmin, self.Tavg, self.Tmax]))
+        # self.data = np.sort(np.concatenate([self.Tmin, self.Tavg, self.Tmax]))
         self.data = self.Tavg
         assert np.all(self.Tmin <= self.Tavg)
         assert np.all(self.Tmax >= self.Tavg)
