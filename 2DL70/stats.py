@@ -77,14 +77,41 @@ class Dataset(object):
     def get_counts(self, bars, xticks, normalize):
         tick_diff = xticks[1] - xticks[0]
         assert np.all(xticks[1:] - xticks[:-1] == tick_diff)
-        ticks = np.stack([xticks + i*tick_diff/bars for i in range(bars)])
-        ticks = np.reshape(ticks, -1, order='F')
+        if bars >= 1:
+            bars = int(bars)
+            ticks = np.stack([xticks + i*tick_diff/bars for i in range(bars)])
+            ticks = np.reshape(ticks, -1, order='F')
+        else:
+            ticks = xticks[np.arange(0, np.size(xticks), step=int(1/bars))]
+            ticks = np.concatenate([ticks, [ticks[-1] + int(1/bars)*tick_diff]])
         tick_diff = ticks[1] - ticks[0]
         assert np.all(np.abs(ticks[1:] - ticks[:-1] - tick_diff) < 1e-10)
         counts = np.array([np.sum((bottom <= self.data)*(top >= self.data)) for (bottom, top) in zip(ticks[:-1], ticks[1:])], dtype=int)
         if normalize:
             counts = counts/np.size(self.data)
         return ticks, counts
+
+    def raw(self):
+        data = self.data[np.random.permutation(np.size(self.data))]
+        s = ''
+        for entry in data:
+            s += f'{entry}, '
+        s = s[:-2]
+        print(s)
+
+    def print(self):
+        mean = np.sum(self.data)/np.size(self.data)
+        print(f'Mean: {mean}')
+        variance = np.sum((self.data - mean)**2)/(np.size(self.data) - 1)
+        print(f'Sample Variance: {variance}')
+        print(f'Sample STD: {np.sqrt(variance)}')
+        variance = np.sum((self.data - mean)**2)/np.size(self.data)
+        print(f'Population Variance: {variance}')
+        print(f'Population STD: {np.sqrt(variance)}')
+        print(f'Range: {np.max(self.data) - np.min(self.data)}')
+        print(f'Median: {np.quantile(self.data, [0.5])}')
+        print(f'Quartiles: {np.quantile(self.data, [0.25, 0.75])}')
+        print(f'Quantiles: {np.quantile(self.data, [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9])}')
 
 
 class Temperature(Dataset):
@@ -96,9 +123,9 @@ class Temperature(Dataset):
         self.Tavg = self.temperatures['Avg Temperature'].to_numpy()
         self.Tmax = self.temperatures['Max Temperature'].to_numpy()
         # self.data = np.sort(np.concatenate([self.Tmin, self.Tavg, self.Tmax]))
-        self.data = self.Tavg
         assert np.all(self.Tmin <= self.Tavg)
         assert np.all(self.Tmax >= self.Tavg)
+        self.data = self.Tavg
 
 
 class StatsPlot(plot):
@@ -255,13 +282,16 @@ class StatsPlot(plot):
     def plot_histogram(self, data, bars=1, transparent=False, normalize=False, **kwargs):
         ticks, counts = self.setup(data, bars, normalize)
         self.histogram(ticks, counts)
-        self.plot_normal(data, np.sum(counts)*(ticks[1] - ticks[0]))
+        # self.plot_normal(data, np.sum(counts)*(ticks[1] - ticks[0]))
         self.save_image(name=self.file_name(data), transparent=transparent)
 
 
 if __name__ == '__main__':
+    Data = Temperature()
+    # Data.raw()
+    # Data.print()
     SP = StatsPlot()
     SP.new_param('--transparent', type=int, default=0)
-    SP.new_param('--bars', type=int, default=1)
+    SP.new_param('--bars', type=float, default=1)
     SP.new_param('--normalize', type=int, default=0)
-    SP.plot_histogram(Temperature(), **SP.get_kwargs())
+    SP.plot_histogram(Data, **SP.get_kwargs())
