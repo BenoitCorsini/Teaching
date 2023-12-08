@@ -2,6 +2,7 @@ import sys
 import os.path as osp
 import numpy as np
 import pandas as pd
+from scipy.special import gamma
 
 sys.path.append('../')
 from bcplot import BCPlot as plot
@@ -12,7 +13,7 @@ CMAP = plot.get_cmap([
     (  0/255,   0/255,   0/255),
 ])
 PARAMS = {
-    # 'dpi' : 10,
+    # 'dpi' : 500,
     'extra_left' : 0.1,
     'extra_right' : 0.1,
     'extra_bottom' : 0.05,
@@ -22,6 +23,8 @@ PARAMS = {
     'label_xshift' : 0.007,
     'label_yshift' : 0.007,
     'label_height' : 0.01,
+    'boxplot_ratio' : 0.5,
+    'boxplot_bar_height' : 0.2,
     'grid_params' : {
         'lw' : 1,
         'color' : CMAP(0.75),
@@ -57,6 +60,14 @@ PARAMS = {
         'capstyle' : 'round',
         'fill' : False,
         'closed' : False,
+    },
+    'boxplot_params' : {
+        'lw' : 2,
+        'ec' : CMAP(0.5),
+        'fc' : CMAP(0.4),
+        'zorder' : 0,
+        'capstyle' : 'round',
+        'joinstyle' : 'round',
     },
 }
 
@@ -112,7 +123,9 @@ class Dataset(object):
         print(f'Median: {np.quantile(self.data, [0.5])}')
         print(f'Quartiles: {np.quantile(self.data, [0.25, 0.75])}')
         print(f'Quantiles: {np.quantile(self.data, [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9])}')
-
+        print()
+        threshold = 643801
+        print(f'Proportion below: {100*np.sum(self.data <= threshold)/np.size(self.data):0.2f}%')
 
 class Temperature(Dataset):
 
@@ -127,6 +140,20 @@ class Temperature(Dataset):
         assert np.all(self.Tmax >= self.Tavg)
         self.data = self.Tavg
 
+class Country(Dataset):
+
+    def __init__(self, country_file='country.csv'):
+        super().__init__(data_file=country_file)
+        self.country = pd.read_csv(self.file, index_col=0)
+        self.pop = self.country['Population'].to_numpy()
+        self.pop = np.array([pop.replace(',', '') for pop in self.pop]).astype(int)
+        self.size = self.country['Size'].to_numpy()
+        self.size = np.array([size.replace(',', '') for size in self.size]).astype(float)
+        self.data = self.pop
+        self.data = self.size
+        self.data = np.log(1 + self.pop)
+        self.data = np.log(1 + self.size)
+
 
 class StatsPlot(plot):
 
@@ -136,7 +163,7 @@ class StatsPlot(plot):
     def file_name(self, data):
         return data.__class__.__name__.lower()
 
-    def setup(self, data, bars=1, normalize=False):
+    def histogram_setup(self, data, bars=1, normalize=False):
         xticks = self.get_ticks(
             bounds=data.get_xbounds(),
             extras=(self.extra_left, self.extra_right),
@@ -257,7 +284,7 @@ class StatsPlot(plot):
         )
         self.plot_ticks(xticks, yticks)
 
-    def histogram(self, ticks, counts):
+    def plot_bars(self, ticks, counts):
         for bottom, top, height in zip(ticks[:-1], ticks[1:], counts):
             self.plot_shape(
                 shape_name='Rectangle',
@@ -267,9 +294,9 @@ class StatsPlot(plot):
                 **self.histo_params
             )
 
-    def plot_normal(self, T, norm, n_points=200):
-        mean = np.mean(T.data)
-        std = np.std(T.data)
+    def plot_normal(self, data, norm, n_points=200):
+        mean = np.mean(data.data)
+        std = np.std(data.data)
         x = np.arange(n_points + 1)/n_points
         x = self.xmin + (self.xmax - self.xmin)*x
         y = norm*np.exp( - (x - mean)**2/2/std**2)/std/np.sqrt(2*np.pi)
@@ -279,19 +306,130 @@ class StatsPlot(plot):
             **self.normal_params
         )
 
-    def plot_histogram(self, data, bars=1, transparent=False, normalize=False, **kwargs):
-        ticks, counts = self.setup(data, bars, normalize)
-        self.histogram(ticks, counts)
-        # self.plot_normal(data, np.sum(counts)*(ticks[1] - ticks[0]))
+    def plot_beta(self, data, norm, n_points=200):
+        mean = np.mean(data.data)
+        std = np.std(data.data)
+        b = np.min(data.data)
+        a = np.max(data.data) - b
+        m = (mean - b)/a
+        v = std**2/a**2
+        alpha = (m*(1 - m)/v - 1)*m
+        beta = (m*(1 - m)/v - 1)*(1 - m)
+        x = np.arange(n_points + 1)/n_points
+        y = x**(alpha - 1)*(1 - x)**(beta - 1)
+        y *= gamma(alpha + beta)/gamma(alpha)/gamma(beta)
+        y = norm*np.concatenate([[0], y, [0]])*a/n_points
+        x = a*x + b
+        x = np.concatenate([[self.xmin], x, [self.xmax]])
+        self.plot_shape(
+            shape_name='Polygon',
+            xy=np.stack([x, y], axis=-1),
+            **self.normal_params
+        )
+
+    def histogram(self, data, bars=1, transparent=False, normalize=False, **kwargs):
+        ticks, counts = self.histogram_setup(data, bars, normalize)
+        self.plot_bars(ticks, counts)
+        self.plot_normal(data, np.sum(counts)*(ticks[1] - ticks[0]))
+        self.plot_beta(data, np.sum(counts)*(ticks[1] - ticks[0]))
+        self.save_image(name=self.file_name(data), transparent=transparent)
+
+    def boxplot_setup(self, data, box_width):
+        quartile1, median, quartile3 = np.quantile(data.data, [0.25, 0.5, 0.75])
+        iqr = quartile3 - quartile1
+        self.xmin = median - iqr/box_width/2
+        self.xmax = median + iqr/box_width/2
+        self.ymin = 1/box_width/self.boxplot_ratio
+        self.ymax = - 1/box_width/self.boxplot_ratio
+        self.x_over_y = (self.xmax - self.xmin)/(self.ymax - self.ymin)*self.figsize[1]/self.figsize[0]
+        self.reset()
+        return median, (quartile1, quartile3)
+
+    def plot_quantiles(self, data, median, quartiles):
+        iqr = quartiles[1] - quartiles[0]
+        lower = np.min(data.data[data.data >= quartiles[0] - 1.5*iqr])
+        upper = np.max(data.data[data.data <= quartiles[1] + 1.5*iqr])
+        outliers = data.data.copy()
+        outliers = outliers[(outliers < lower) + (outliers > upper)]
+        extremes = outliers[(outliers < lower - 1.5*iqr) + (outliers > upper + 1.5*iqr)]
+        outliers = outliers[(outliers >= lower - 1.5*iqr) & (outliers <= upper + 1.5*iqr)]
+        self.plot_shape(
+            shape_name='Rectangle',
+            xy=(lower, 0),
+            width=upper - lower,
+            height=0,
+            **self.boxplot_params
+        )
+        self.plot_shape(
+            shape_name='Rectangle',
+            xy=(lower, - self.boxplot_bar_height),
+            width=0,
+            height=2*self.boxplot_bar_height,
+            **self.boxplot_params
+        )
+        self.plot_shape(
+            shape_name='Rectangle',
+            xy=(upper, - self.boxplot_bar_height),
+            width=0,
+            height=2*self.boxplot_bar_height,
+            **self.boxplot_params
+        )
+        self.plot_shape(
+            shape_name='Rectangle',
+            xy=(quartiles[0], - 1),
+            width=iqr,
+            height=2,
+            **self.boxplot_params
+        )
+        self.plot_shape(
+            shape_name='Rectangle',
+            xy=(median, - 1),
+            width=0,
+            height=2,
+            **self.boxplot_params
+        )
+        for o in outliers:
+            self.plot_shape(
+                shape_name='Ellipse',
+                xy=(o, 0),
+                width=2*self.boxplot_bar_height*self.x_over_y,
+                height=2*self.boxplot_bar_height,
+                fill=False,
+                **self.boxplot_params
+            )
+        for e in extremes:
+            self.plot_shape(
+                shape_name='Polygon',
+                xy=[
+                    (e - self.boxplot_bar_height*self.x_over_y, - self.boxplot_bar_height),
+                    (e + self.boxplot_bar_height*self.x_over_y, self.boxplot_bar_height),
+                ],
+                **self.boxplot_params
+            )
+            self.plot_shape(
+                shape_name='Polygon',
+                xy=[
+                    (e - self.boxplot_bar_height*self.x_over_y, self.boxplot_bar_height),
+                    (e + self.boxplot_bar_height*self.x_over_y, - self.boxplot_bar_height),
+                ],
+                **self.boxplot_params
+            )
+
+    def boxplot(self, data, box_width=1, transparent=False, **kwargs):
+        boxplot_info = self.boxplot_setup(data, box_width)
+        self.plot_quantiles(data, *boxplot_info)
         self.save_image(name=self.file_name(data), transparent=transparent)
 
 
 if __name__ == '__main__':
     Data = Temperature()
+    Data = Country()
     # Data.raw()
-    # Data.print()
+    Data.print()
     SP = StatsPlot()
     SP.new_param('--transparent', type=int, default=0)
     SP.new_param('--bars', type=float, default=1)
     SP.new_param('--normalize', type=int, default=0)
-    SP.plot_histogram(Data, **SP.get_kwargs())
+    SP.new_param('--box_width', type=float, default=1)
+    SP.histogram(Data, **SP.get_kwargs())
+    # SP.boxplot(Data, **SP.get_kwargs())
