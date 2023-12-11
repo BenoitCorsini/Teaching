@@ -14,10 +14,10 @@ CMAP = plot.get_cmap([
 ])
 PARAMS = {
     # 'dpi' : 500,
-    'extra_left' : 0.05,
-    'extra_right' : 0.0,
-    'extra_bottom' : 0.05,
-    'extra_top' : 0.05,
+    'extra_left' : 0.2,
+    'extra_right' : 0.2,
+    'extra_bottom' : 0.1,
+    'extra_top' : 0.2,
     'max_ticks' : 15,
     'tick_height' : 0.007,
     'label_xshift' : 0.007,
@@ -176,6 +176,18 @@ class Country(Dataset):
         self.data = self.size
         self.data = np.log(1 + self.pop)
         self.data = np.log(1 + self.size)
+
+class Trains(Dataset):
+
+    def __init__(self, train_file='train.csv'):
+        super().__init__(data_file=train_file)
+        self.train = pd.read_csv(self.file, index_col=0)
+        self.data = self.train['time'].to_numpy()
+        assert np.all(self.data >= 0)
+        assert np.all(self.data < 60)
+        assert np.all(self.data[1:] > self.data[:-1])
+        self.data = np.concatenate([self.data, [60 + self.data[0]]])
+        self.data = self.data[1:] - self.data[:-1]
 
 
 class StatsPlot(plot):
@@ -354,7 +366,7 @@ class StatsPlot(plot):
         ticks, counts = self.histogram_setup(data, bars, normalize)
         self.plot_bars(ticks, counts)
         self.plot_normal(data, np.sum(counts)*(ticks[1] - ticks[0]))
-        self.plot_beta(data, np.sum(counts)*(ticks[1] - ticks[0]))
+        # self.plot_beta(data, np.sum(counts)*(ticks[1] - ticks[0]))
         self.save_image(name=self.file_name(data), transparent=transparent)
 
     def boxplot_setup(self, data, box_width):
@@ -506,6 +518,7 @@ class StatsPlot(plot):
 if __name__ == '__main__':
     Data = Temperature()
     # Data = Country()
+    Data = Trains()
     # Data.raw()
     # Data.print()
     SP = StatsPlot()
@@ -513,6 +526,6 @@ if __name__ == '__main__':
     SP.new_param('--bars', type=float, default=1)
     SP.new_param('--normalize', type=int, default=0)
     SP.new_param('--box_width', type=float, default=1)
-    # SP.histogram(Data, **SP.get_kwargs())
+    SP.histogram(Data, **SP.get_kwargs())
     # SP.boxplot(Data, **SP.get_kwargs())
-    SP.evolution(Data, **SP.get_kwargs())
+    # SP.evolution(Data, **SP.get_kwargs())
