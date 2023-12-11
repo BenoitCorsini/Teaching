@@ -17,7 +17,7 @@ PARAMS = {
     'extra_left' : 0.2,
     'extra_right' : 0.2,
     'extra_bottom' : 0.1,
-    'extra_top' : 0.2,
+    'extra_top' : 0.25,
     'max_ticks' : 15,
     'tick_height' : 0.007,
     'label_xshift' : 0.007,
@@ -362,11 +362,29 @@ class StatsPlot(plot):
             **self.normal_params
         )
 
+    def plot_exponential(self, data, l, norm, n_points=200):
+        x = np.arange(n_points + 1)/n_points
+        x = self.xmin + (self.xmax - self.xmin)*x
+        index = np.sum(x <= 0)
+        x = np.concatenate([x[:index], [0]*2, x[index:]])
+        y = norm*l*np.exp( - l*x)
+        y[:index + 1] = 0
+        self.plot_shape(
+            shape_name='Polygon',
+            xy=np.stack([x, y], axis=-1),
+            **self.normal_params
+        )
+
     def histogram(self, data, bars=1, transparent=False, normalize=False, **kwargs):
         ticks, counts = self.histogram_setup(data, bars, normalize)
         self.plot_bars(ticks, counts)
-        self.plot_normal(data, np.sum(counts)*(ticks[1] - ticks[0]))
+        # self.plot_normal(data, np.sum(counts)*(ticks[1] - ticks[0]))
         # self.plot_beta(data, np.sum(counts)*(ticks[1] - ticks[0]))
+        l = np.log(4/3)/np.quantile(data.data, 0.25)
+        l = 1/np.mean(data.data)
+        l = np.mean(1/data.data)
+        print(l)
+        self.plot_exponential(data, l, np.sum(counts)*(ticks[1] - ticks[0]))
         self.save_image(name=self.file_name(data), transparent=transparent)
 
     def boxplot_setup(self, data, box_width):
