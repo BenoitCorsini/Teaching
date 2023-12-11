@@ -14,10 +14,10 @@ CMAP = plot.get_cmap([
 ])
 PARAMS = {
     # 'dpi' : 500,
-    'extra_left' : 0.1,
-    'extra_right' : 0.1,
+    'extra_left' : 0.05,
+    'extra_right' : 0.0,
     'extra_bottom' : 0.05,
-    'extra_top' : 0.1,
+    'extra_top' : 0.05,
     'max_ticks' : 15,
     'tick_height' : 0.007,
     'label_xshift' : 0.007,
@@ -68,6 +68,29 @@ PARAMS = {
         'zorder' : 0,
         'capstyle' : 'round',
         'joinstyle' : 'round',
+    },
+    'evo_params' : {
+        'lw' : 2,
+        'color' : CMAP(0.75),
+        'zorder' : 3,
+        'capstyle' : 'round',
+        'joinstyle' : 'round',
+        'fill' : False,
+        'closed' : False,
+    },
+    'fluct_params' : {
+        'lw' : 2,
+        'color' : CMAP(0.25),
+        'zorder' : 1,
+        'capstyle' : 'round',
+        'joinstyle' : 'round',
+        'fill' : False,
+        'closed' : False,
+    },
+    'times' : {
+        'initial' : 1,
+        'final' : 1,
+        'steps' : 8,
     },
 }
 
@@ -138,7 +161,7 @@ class Temperature(Dataset):
         # self.data = np.sort(np.concatenate([self.Tmin, self.Tavg, self.Tmax]))
         assert np.all(self.Tmin <= self.Tavg)
         assert np.all(self.Tmax >= self.Tavg)
-        self.data = self.Tavg
+        self.data = self.Tavg#[np.random.permutation(np.size(self.Tavg))]
 
 class Country(Dataset):
 
@@ -420,16 +443,76 @@ class StatsPlot(plot):
         self.plot_quantiles(data, *boxplot_info)
         self.save_image(name=self.file_name(data), transparent=transparent)
 
+    def evolution_setup(self, data):
+        xticks = self.get_ticks(
+            bounds=(1, np.size(data.data)),
+            extras=(self.extra_left, self.extra_right),
+            axis='x',
+        ).astype(int)
+        bounds = (
+            np.floor(np.min(data.data)),
+            np.ceil(np.max(data.data)),
+        )
+        yticks = self.get_ticks(
+            bounds=bounds,
+            extras=(self.extra_bottom, self.extra_top),
+            axis='y',
+            step=1,
+        ).astype(int)
+        self.x_over_y = (self.xmax - self.xmin)/(self.ymax - self.ymin)*self.figsize[1]/self.figsize[0]
+        self.reset()
+        self.plot_axis(xticks, yticks)
+
+    def evolution(self, data, transparent=False, **kwargs):
+        self.evolution_setup(data)
+
+        self.evo = self.plot_shape(
+            shape_name='Polygon',
+            xy=[[0, 0]],
+            **self.evo_params
+        )
+        evo = np.array(list(enumerate(data.data)))
+        evo[:,0] += 1
+        evo = np.concatenate([[[0, 0]], evo])
+        self.flucts = []
+        for _ in range(3):
+            self.flucts.append(self.plot_shape(
+                shape_name='Polygon',
+                xy=[[0, 0]],
+                **self.fluct_params
+            ))
+        flucts = []
+        for q in [0.25, 0.5, 0.75]:
+            flucts.append([0] + [np.quantile(data.data[:(i + 1)], q) for i in range(np.size(data.data))])
+
+        for _ in range(int(self.fps*self.times['initial'])):
+            self.new_frame()
+        steps = np.arange(0, self.times['steps'] + 1/self.fps, 1/self.fps)/self.times['steps']
+        assert np.max(steps) == 1
+        steps = (np.size(data.data)*steps).astype(int)
+        for s in steps:
+            self.evo.set_xy(evo[:(s + 1)])
+            for p, f in zip(self.flucts, flucts):
+                p.set_xy(np.array(list(enumerate(f[:(s + 1)]))))
+            self.new_frame()
+        for _ in range(int(self.fps*self.times['final'])):
+            self.new_frame()
+
+        self.save_image(name=self.file_name(data), transparent=transparent)
+        self.save_video(name=self.file_name(data))
+
+
 
 if __name__ == '__main__':
     Data = Temperature()
-    Data = Country()
+    # Data = Country()
     # Data.raw()
-    Data.print()
+    # Data.print()
     SP = StatsPlot()
     SP.new_param('--transparent', type=int, default=0)
     SP.new_param('--bars', type=float, default=1)
     SP.new_param('--normalize', type=int, default=0)
     SP.new_param('--box_width', type=float, default=1)
-    SP.histogram(Data, **SP.get_kwargs())
+    # SP.histogram(Data, **SP.get_kwargs())
     # SP.boxplot(Data, **SP.get_kwargs())
+    SP.evolution(Data, **SP.get_kwargs())
