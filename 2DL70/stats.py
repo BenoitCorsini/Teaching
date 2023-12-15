@@ -148,7 +148,8 @@ class Dataset(object):
         print(f'Quantiles: {np.quantile(self.data, [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9])}')
         print()
         threshold = 643801
-        print(f'Proportion below: {100*np.sum(self.data <= threshold)/np.size(self.data):0.2f}%')
+        # print(f'Proportion below: {100*np.sum(self.data <= threshold)/np.size(self.data):0.2f}%')
+        print(f'Proportion between: {100*np.mean((self.data <= 17.099)*(7.201 <= self.data))}')
 
 class Temperature(Dataset):
 
@@ -380,11 +381,12 @@ class StatsPlot(plot):
         self.plot_bars(ticks, counts)
         # self.plot_normal(data, np.sum(counts)*(ticks[1] - ticks[0]))
         # self.plot_beta(data, np.sum(counts)*(ticks[1] - ticks[0]))
+        print(data.data)
         l = np.log(4/3)/np.quantile(data.data, 0.25)
         l = 1/np.mean(data.data)
         l = np.mean(1/data.data)
         print(l)
-        self.plot_exponential(data, l, np.sum(counts)*(ticks[1] - ticks[0]))
+        # self.plot_exponential(data, l, np.sum(counts)*(ticks[1] - ticks[0]))
         self.save_image(name=self.file_name(data), transparent=transparent)
 
     def boxplot_setup(self, data, box_width):
@@ -536,14 +538,14 @@ class StatsPlot(plot):
 if __name__ == '__main__':
     Data = Temperature()
     # Data = Country()
-    Data = Trains()
+    # Data = Trains()
     # Data.raw()
-    # Data.print()
+    Data.print()
     SP = StatsPlot()
     SP.new_param('--transparent', type=int, default=0)
     SP.new_param('--bars', type=float, default=1)
     SP.new_param('--normalize', type=int, default=0)
     SP.new_param('--box_width', type=float, default=1)
-    SP.histogram(Data, **SP.get_kwargs())
+    # SP.histogram(Data, **SP.get_kwargs())
     # SP.boxplot(Data, **SP.get_kwargs())
     # SP.evolution(Data, **SP.get_kwargs())
