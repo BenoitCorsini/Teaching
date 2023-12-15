@@ -509,7 +509,7 @@ class Normal(ContinuousDistribution):
 
 class Student(ContinuousDistribution):
 
-    def __init__(self, nu=2):
+    def __init__(self, nu=1):
         super().__init__()
         assert nu > 0
         self.nu = nu
