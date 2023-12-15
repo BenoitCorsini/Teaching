@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.special import factorial
+from scipy.special import factorial, gamma
 from scipy.stats import norm
 
 
@@ -506,3 +506,23 @@ class Normal(ContinuousDistribution):
         mus = mu_shift*rs
         sigma_squares = max_sigma**(rs*(1 + rs))/min_sigma**(rs*(1 - rs))
         return [{'mu' : mu, 'sigma_square' : sigma_square} for (mu, sigma_square) in zip(mus, sigma_squares)]
+
+class Student(ContinuousDistribution):
+
+    def __init__(self, nu=2):
+        super().__init__()
+        assert nu > 1
+        self.nu = nu
+        self.params = ['nu']
+        self.params_name = {'nu' : r'\nu'}
+        self.mean = 0
+        if self.nu <= 2:
+            self.variance = np.inf
+        else:
+            self.variance = self.nu/(self.nu - 2)
+
+    def function(self, x):
+        return gamma((self.nu + 1)/2)/np.sqrt(self.nu*np.pi)/gamma(self.nu/2)/(1 + x**2/self.nu)**((self.nu + 1)/2)
+
+    def cumulative_function(self, x):
+        return np.zeros_like(x)
