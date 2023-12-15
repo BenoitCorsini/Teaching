@@ -15,10 +15,10 @@ CDF_COLOUR = CMAP(0.3)
 FLU_COLOUR = CMAP(0.5)
 PARAMS = {
     # 'dpi' : 10,
-    'extra_left' : 0.2,
-    'extra_right' : 0.2,
+    'extra_left' : 0.1,
+    'extra_right' : 0.1,
     'extra_bottom' : 0.1,
-    'extra_top' : 0.15,
+    'extra_top' : 0.1,
     'max_ticks' : 15,
     'tick_height' : 0.01,
     'label_xshift' : 0.1,
@@ -123,6 +123,7 @@ PARAMS = {
         'initial' : 1,
         'final' : 1,
         'binomial_and_poisson' : 8,
+        'student_and_normal' : 8,
         'discrete_and_continuous' : 8,
     },
 }
@@ -427,9 +428,9 @@ class DistributionPlot(plot):
         x = distribution.range(max(self.xmax, - self.xmin))
         x = x[distribution.in_range(x)]
         pdf = distribution.pdf(x)
-        # print(x, pdf)
-        x = np.concatenate([[self.xmin,x[0]],x,[x[-1],self.xmax]])
-        pdf = np.concatenate([[0,0],pdf,[0,0]])
+        # x = np.concatenate([[self.xmin,x[0]],x,[x[-1],self.xmax]])
+        # pdf = np.concatenate([[0,0],pdf,[0,0]])
+        print(pdf)
         self.pdf[key].set_xy(np.stack([x, pdf], axis=-1))
         self.pdf[key].set(**kwargs)
 
@@ -557,6 +558,58 @@ class DistributionPlot(plot):
             name += '(CDF)'
         self.save_video(name=name)
 
+
+
+
+
+
+
+    def student_and_normal(self, bound=None, nu_max=40, nu_min=2, **kwargs):
+        self.reset()
+        N = Normal(mu=0, sigma_square=1)
+        self.setup(N, bound=bound)
+        normal_text_params = self.text_params.copy()
+        normal_text_params['anchor'] = 'north west'
+        normal_text_params['y'] = 2 - normal_text_params['y']
+        normal_name_params = self.name_params.copy()
+        normal_name_params['color'] = CDF_COLOUR
+        normal_name_params['zorder'] = self.pdf_params['zorder']
+        normal_name = self.plot_shape(
+            shape_name='PathPatch',
+            path=self.path_from_string(s=r'N(0,1)', **normal_text_params),
+            **normal_name_params
+        )
+        normal_dist_params = self.continuous_cdf_params.copy()
+        normal_dist_params['zorder'] = self.pdf_params['zorder']
+        self.plot_pdf(N, key='Normal', **normal_dist_params)
+        S = Student(nu_min)
+        n_steps = int(self.fps*self.times['student_and_normal'])
+        params_list = []
+        for i in range(n_steps):
+            params_list.append({'nu' : nu_min + (nu_max - nu_min)*(i + 1)/n_steps})
+        default_params = {
+            'set_visible' : True,
+            'discrete_cdf_params' : {'visible' : False},
+            'fluctuation_params' : {'visible' : False},
+        }
+        self.update_continuous(S, **default_params)
+        self.save_image()
+        for _ in range(int(self.fps*self.times['initial'])):
+            self.new_frame()
+        for params in params_list:
+            S.update(**params)
+            self.update_continuous(S, **default_params)
+            self.new_frame()
+        for _ in range(int(self.fps*self.times['initial'])):
+            self.new_frame()
+        name = 'StudentNormal'
+        self.save_video(name=name)
+
+
+
+
+
+
     def discrete_and_continuous(self, scaling_distribution, continuous_distribution, bound=None, max_scale=10, **kwargs):
         self.reset()
         self.setup(continuous_distribution, bound=bound)
@@ -611,12 +664,13 @@ if __name__ == '__main__':
     # X = Normal()
     # DP.run(X, **DP.get_kwargs())
     # DP.binomial_and_poisson(**DP.get_kwargs())
-    scaling_distribution, continuous_distribution = ScalingUniform(), ContinuousUniform()
-    scaling_distribution, continuous_distribution = ScalingGeometric(), Exponential()
-    scaling_distribution, continuous_distribution = ScalingBinomial(), Normal()
-    scaling_distribution, continuous_distribution = ScalingPoisson(), Normal()
-    DP.discrete_and_continuous(
-        scaling_distribution,
-        continuous_distribution,
-        **DP.get_kwargs()
-    )
+    DP.student_and_normal(**DP.get_kwargs())
+    # scaling_distribution, continuous_distribution = ScalingUniform(), ContinuousUniform()
+    # scaling_distribution, continuous_distribution = ScalingGeometric(), Exponential()
+    # scaling_distribution, continuous_distribution = ScalingBinomial(), Normal()
+    # scaling_distribution, continuous_distribution = ScalingPoisson(), Normal()
+    # DP.discrete_and_continuous(
+    #     scaling_distribution,
+    #     continuous_distribution,
+    #     **DP.get_kwargs()
+    # )
