@@ -511,7 +511,7 @@ class Student(ContinuousDistribution):
 
     def __init__(self, nu=2):
         super().__init__()
-        assert nu > 1
+        assert nu > 0
         self.nu = nu
         self.params = ['nu']
         self.params_name = {'nu' : r'\nu'}
