@@ -145,12 +145,12 @@ class DistributionPlot(plot):
             extras=(self.extra_left, self.extra_right),
             axis='x',
         ).astype(int)
-        yticks = self.get_ticks(
+        yticks = np.round(self.get_ticks(
             bounds=(0, 1),
             extras=(self.extra_bottom, self.extra_top),
             axis='y',
             step=0.25,
-        )
+        ), 2)
         self.x_over_y = (self.xmax - self.xmin)/(self.ymax - self.ymin)*self.figsize[1]/self.figsize[0]
         self.reset()
         self.plot_axis(xticks, yticks)
@@ -430,7 +430,6 @@ class DistributionPlot(plot):
         pdf = distribution.pdf(x)
         # x = np.concatenate([[self.xmin,x[0]],x,[x[-1],self.xmax]])
         # pdf = np.concatenate([[0,0],pdf,[0,0]])
-        print(pdf)
         self.pdf[key].set_xy(np.stack([x, pdf], axis=-1))
         self.pdf[key].set(**kwargs)
 
@@ -558,13 +557,8 @@ class DistributionPlot(plot):
             name += '(CDF)'
         self.save_video(name=name)
 
-
-
-
-
-
-
     def student_and_normal(self, bound=None, nu_max=40, nu_min=2, **kwargs):
+        name = 'StudentNormal'
         self.reset()
         N = Normal(mu=0, sigma_square=1)
         self.setup(N, bound=bound)
@@ -583,17 +577,19 @@ class DistributionPlot(plot):
         normal_dist_params['zorder'] = self.pdf_params['zorder']
         self.plot_pdf(N, key='Normal', **normal_dist_params)
         S = Student(nu_min)
-        n_steps = int(self.fps*self.times['student_and_normal'])
+        steps = int(self.fps*self.times['student_and_normal'])
+        steps = (1 + np.arange(steps))/steps
+        steps = steps**3
         params_list = []
-        for i in range(n_steps):
-            params_list.append({'nu' : nu_min + (nu_max - nu_min)*(i + 1)/n_steps})
+        for step in steps:
+            params_list.append({'nu' : nu_min + (nu_max - nu_min)*step})
         default_params = {
             'set_visible' : True,
             'discrete_cdf_params' : {'visible' : False},
             'fluctuation_params' : {'visible' : False},
         }
         self.update_continuous(S, **default_params)
-        self.save_image()
+        self.save_image(name=name)
         for _ in range(int(self.fps*self.times['initial'])):
             self.new_frame()
         for params in params_list:
@@ -602,13 +598,7 @@ class DistributionPlot(plot):
             self.new_frame()
         for _ in range(int(self.fps*self.times['initial'])):
             self.new_frame()
-        name = 'StudentNormal'
         self.save_video(name=name)
-
-
-
-
-
 
     def discrete_and_continuous(self, scaling_distribution, continuous_distribution, bound=None, max_scale=10, **kwargs):
         self.reset()
@@ -657,6 +647,8 @@ if __name__ == '__main__':
     DP = DistributionPlot()
     DP.new_param('--bound', type=int, default=1)
     DP.new_param('--n_max', type=int, default=1)
+    DP.new_param('--nu_min', type=float, default=2)
+    DP.new_param('--nu_max', type=float, default=40)
     DP.new_param('--l', type=float, default=1)
     DP.new_param('--use_pmf', type=int, default=1)
     DP.new_param('--max_scale', type=int, default=1)
