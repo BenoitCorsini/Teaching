@@ -139,6 +139,12 @@ class Dataset(object):
         variance = np.sum((self.data - mean)**2)/(np.size(self.data) - 1)
         print(f'Sample Variance: {variance}')
         print(f'Sample STD: {np.sqrt(variance)}')
+        print()
+        # print(f'Confidence interval: {mean+1.645*np.sqrt(variance/np.size(self.data))}')
+        print(f'Confidence interval: {mean-1.645*np.sqrt(variance/np.size(self.data)):0.2f}, {mean+1.96*np.sqrt(variance/np.size(self.data)):0.2f}')
+        print(f'Error: {1.96*np.sqrt(variance/np.size(self.data)):0.2f}')
+        print(f'Stat: {mean/np.sqrt(variance/np.size(self.data)):0.2f}')
+        print()
         variance = np.sum((self.data - mean)**2)/np.size(self.data)
         print(f'Population Variance: {variance}')
         print(f'Population STD: {np.sqrt(variance)}')
@@ -189,6 +195,20 @@ class Trains(Dataset):
         assert np.all(self.data[1:] > self.data[:-1])
         self.data = np.concatenate([self.data, [60 + self.data[0]]])
         self.data = self.data[1:] - self.data[:-1]
+
+class Electricity(Dataset):
+
+    def __init__(self, electricity_file='electricity.csv'):
+        super().__init__(data_file=electricity_file)
+        self.electricity = pd.read_csv(self.file)
+        # self.electricity = self.electricity[self.electricity['Date'].apply(lambda s:s.startswith('30/6/'))]
+        self.data = self.electricity['Kitchen'].to_numpy()
+        self.data = self.electricity['Laundry'].to_numpy()
+        self.data = self.electricity['Thermos'].to_numpy()
+        self.data = self.electricity['Thermos'].to_numpy() - self.electricity['Laundry'].to_numpy()
+        # self.data = np.log(1 + self.data) + 1e-10
+        # self.data = self.data[self.data > 0]
+        print(self.data.shape)
 
 
 class StatsPlot(plot):
@@ -381,11 +401,9 @@ class StatsPlot(plot):
         self.plot_bars(ticks, counts)
         # self.plot_normal(data, np.sum(counts)*(ticks[1] - ticks[0]))
         # self.plot_beta(data, np.sum(counts)*(ticks[1] - ticks[0]))
-        print(data.data)
-        l = np.log(4/3)/np.quantile(data.data, 0.25)
-        l = 1/np.mean(data.data)
-        l = np.mean(1/data.data)
-        print(l)
+        # l = np.log(4/3)/np.quantile(data.data, 0.25)
+        # l = 1/np.mean(data.data)
+        # l = np.mean(1/data.data)
         # self.plot_exponential(data, l, np.sum(counts)*(ticks[1] - ticks[0]))
         self.save_image(name=self.file_name(data), transparent=transparent)
 
@@ -539,13 +557,14 @@ if __name__ == '__main__':
     Data = Temperature()
     # Data = Country()
     # Data = Trains()
+    Data = Electricity()
     # Data.raw()
     Data.print()
-    SP = StatsPlot()
-    SP.new_param('--transparent', type=int, default=0)
-    SP.new_param('--bars', type=float, default=1)
-    SP.new_param('--normalize', type=int, default=0)
-    SP.new_param('--box_width', type=float, default=1)
+    # SP = StatsPlot()
+    # SP.new_param('--transparent', type=int, default=0)
+    # SP.new_param('--bars', type=float, default=1)
+    # SP.new_param('--normalize', type=int, default=0)
+    # SP.new_param('--box_width', type=float, default=1)
     # SP.histogram(Data, **SP.get_kwargs())
     # SP.boxplot(Data, **SP.get_kwargs())
     # SP.evolution(Data, **SP.get_kwargs())
