@@ -43,6 +43,10 @@ class Figure(object):
         self.__copyright__()
 
     @staticmethod
+    def is_patch(obj):
+        return isinstance(obj, patches.Patch)
+
+    @staticmethod
     def shift_from_anchor(bbox, anchor=None):
         if anchor is None:
             return np.array([0, 0])
@@ -136,7 +140,7 @@ class Figure(object):
             colour_list = [start_with, colour]
         else:
             colour_list = [start_with, colour, end_with]
-        return Image.get_cmap(colour_list)
+        return Figure.get_cmap(colour_list)
 
     @staticmethod
     def time_to_string(time):
